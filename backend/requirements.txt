@@ -19,3 +19,4 @@ psycopg[binary]
 psycopg-pool
 requests==2.32.5
 httpx
+polars

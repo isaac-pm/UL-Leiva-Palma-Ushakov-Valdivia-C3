@@ -1,6 +1,24 @@
-from fastapi import FastAPI
+from contextlib import asynccontextmanager
+from fastapi import Depends, FastAPI, Path, Query
+from fastapi.responses import JSONResponse
+from sqlmodel import Session, SQLModel
 from fastapi.middleware.cors import CORSMiddleware
 from art import *
+
+from core.database import get_engine, get_db_session
+
+tprint("Pura vida harni tsytsky",font="art")
+tprint("Simple as possible as promised bro",font="cybermedum")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("Initializing hpdav api...")
+    engine = get_engine()
+    SQLModel.metadata.create_all(engine)
+    print("Database tables verified/created.")
+    yield
+    print("Shutting down hpdav api...")
+
 
 app = FastAPI()
 
@@ -12,6 +30,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+#app.include_router(knowledge_router.router)
 
 
 @app.get("/api/message")
