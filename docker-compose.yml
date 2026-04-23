@@ -1,0 +1,85 @@
+# ============================================================
+# Author: geralm - Leiva Palma, Ushakov, Valdivia
+# Project: HPDAV - High-Performance Data Analysis and Visualization
+# ============================================================
+services:
+  db:     
+    image: postgres:15-alpine
+    container_name: hpdav-db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+      TZ: ${TIMEZONE:-UTC}
+    ports:
+      - "${DB_PORT}:5432"
+    volumes:
+      - db_data_hpdav:/var/lib/postgresql/data
+    healthcheck:
+      # Double $$ escapes the variable to be evaluated inside the container shell
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hpdav-network
+  db-init:
+    image: python:3.12-slim
+    working_dir: /app
+    container_name: hpdav-db-init
+    command: sh -c "pip install --no-cache-dir -r requirements.txt && python3 -m scripts.db_init"
+    env_file:
+      - .env
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - hpdav-network 
+  backend: 
+    image: python:3.12-slim
+    container_name: hpdav-backend
+    env_file:
+      - .env
+    restart: unless-stopped
+    working_dir: /app
+    command: sh -c "pip install --no-cache-dir -r requirements.txt && python -Xfrozen_modules=off -m debugpy --listen 0.0.0.0:5678 -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+    ports:
+      - "8000:8000"
+      - "5678:5678"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db-init:
+        condition: service_completed_successfully 
+      db:
+        condition: service_healthy   
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5 
+  frontend:
+    image: node:22.14-alpine
+    container_name: hpdav-frontend
+    env_file:
+      - .env
+    restart: unless-stopped
+    working_dir: /app
+    command: sh -c "npm install && npm run dev"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - hpdav-network
+networks:
+  hpdav-network:
+    driver: bridge
+volumes:
+  db_data_hpdav:
