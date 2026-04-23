@@ -36,7 +36,7 @@ class ApartmentService:
                 .offset(offset)
             )
             results = session.exec(stmt).all()
-            data = [row._mapping for row in results]
+            data = [dict(row) for row in results]
             return Result.ok({"data": data, "limit": limit, "offset": offset})
         except Exception as e:
             return Result.fail(f"500_INTERNAL: {str(e)}", status_code=500)

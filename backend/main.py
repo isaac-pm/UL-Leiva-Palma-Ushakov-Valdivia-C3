@@ -1,12 +1,12 @@
 from contextlib import asynccontextmanager
-from fastapi import Depends, FastAPI, Path, Query
-from fastapi.responses import JSONResponse
-from sqlmodel import Session, SQLModel
+from fastapi import FastAPI
+
+from sqlmodel import SQLModel
 from fastapi.middleware.cors import CORSMiddleware
 from art import *
 
 import core.models
-from core.database import get_engine, get_db_session
+from core.database import get_engine
 from api.routers import (
     participants_router,
     buildings_router,

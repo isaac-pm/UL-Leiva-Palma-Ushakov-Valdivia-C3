@@ -78,7 +78,7 @@ class VenueService:
                     status_code=400,
                 )
             results = session.exec(stmt).all()
-            data = [dict(row._mapping, venue_type=venue_type) for row in results]
+            data = [{**dict(row), "venue_type": venue_type} for row in results]
             return Result.ok({"data": data, "venue_type": venue_type, "limit": limit, "offset": offset})
         except Exception as e:
             return Result.fail(f"500_INTERNAL: {str(e)}", status_code=500)

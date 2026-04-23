@@ -125,7 +125,7 @@ def ingest_activity_logs(session: Session, base_dir: str):
     """
     Handles the 18GB multi-file activity log ingestion.
     """
-    log_dir = os.path.join(base_dir, "data/Activity Logs")
+    log_dir = os.path.join(base_dir, "../data/Activity Logs")
     if not os.path.exists(log_dir):
         logger.warning("Activity Logs directory missing. Skipping.")
         return
