@@ -1,11 +1,12 @@
 import os
+import logging
 from typing import Dict, Any, List, Type
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select, SQLModel, insert
 import polars as pl
 from core.database import get_engine
 
-from domain.models import (
+from core.models import (
     Buildings, 
     Participants, 
     Apartments, 
@@ -21,31 +22,32 @@ from domain.models import (
     ActivityLogs
 )
 
-
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger("database_init")
 
 # Configure DB URL
 engine = get_engine()
 
 INGESTION_PLAN = [
     # Level 1: No dependencies
-    ("data/Attributes/Buildings.csv", Buildings),
-    ("data/Attributes/Participants.csv", Participants),
+    ("../data/Attributes/Buildings.csv", Buildings),
+    ("../data/Attributes/Participants.csv", Participants),
     
     # Level 2: Depends on Buildings
-    ("data/Attributes/Apartments.csv", Apartments),
-    ("data/Attributes/Employers.csv", Employers),
-    ("data/Attributes/Pubs.csv", Pubs),
-    ("data/Attributes/Restaurants.csv", Restaurants),
-    ("data/Attributes/Schools.csv", Schools),
+    ("../data/Attributes/Apartments.csv", Apartments),
+    ("../data/Attributes/Employers.csv", Employers),
+    ("../data/Attributes/Pubs.csv", Pubs),
+    ("../data/Attributes/Restaurants.csv", Restaurants),
+    ("../data/Attributes/Schools.csv", Schools),
     
     # Level 3: Depends on Employers
-    ("data/Attributes/Jobs.csv", Jobs),
+    ("../data/Attributes/Jobs.csv", Jobs),
     
     # Level 4: Journals (Depends on Participants & Locations)
-    ("data/Journals/CheckinJournal.csv", CheckinJournal),
-    ("data/Journals/FinancialJournal.csv", FinancialJournal),
-    ("data/Journals/SocialNetwork.csv", SocialNetwork),
-    ("data/Journals/TravelJournal.csv", TravelJournal),
+    ("../data/Journals/CheckinJournal.csv", CheckinJournal),
+    ("../data/Journals/FinancialJournal.csv", FinancialJournal),
+    ("../data/Journals/SocialNetwork.csv", SocialNetwork),
+    ("../data/Journals/TravelJournal.csv", TravelJournal),
 ]
 
 def parse_broken_array(val_str: Any) -> List[str]:
@@ -65,10 +67,10 @@ def parse_broken_array(val_str: Any) -> List[str]:
 
 def bulk_insert_with_polars(session: Session, file_path: str, model: Type[SQLModel]):
     if not os.path.exists(file_path):
-        print(f"File not found. Skipping: {file_path}")
+        logger.warning(f"File not found. Skipping: {file_path}")
         return
 
-    print(f"Ingesting {file_path} into {model.__tablename__} using Polars...")
+    logger.info(f"Ingesting {file_path} into {model.__tablename__} using Polars...")
 
     # 1. High-performance CSV parsing & Null standardization
     df = pl.read_csv(
@@ -125,7 +127,7 @@ def ingest_activity_logs(session: Session, base_dir: str):
     """
     log_dir = os.path.join(base_dir, "data/Activity Logs")
     if not os.path.exists(log_dir):
-        print("Activity Logs directory missing. Skipping.")
+        logger.warning("Activity Logs directory missing. Skipping.")
         return
 
     files = [f for f in os.listdir(log_dir) if f.startswith("ParticipantStatusLogs") and f.endswith(".csv")]
@@ -141,13 +143,21 @@ def init_db():
     
     with Session(engine) as session:
         if is_database_seeded(session):
-            print("Database is already seeded. Bypassing initialization.")
+            logger.info("Database is already seeded. Bypassing initialization.")
             return
 
-        print("Starting fresh data ingestion...")
-       
+        logger.info("Starting fresh data ingestion...")
+        
         # 1. Ingest core attributes and journals
         for file_path, model in INGESTION_PLAN:
             bulk_insert_with_polars(session, file_path, model)
             
-        #
+        # 2. Ingest the 18GB distributed logs
+        print("Starting massive Activity Log ingestion. This will take time.")
+        ingest_activity_logs(session, base_dir=".")
+
+# --- MISSING EXECUTION BLOCK ---
+if __name__ == "__main__":
+    logger.info("Starting Database Initialization Protocol...")
+    init_db()
+    logger.info("Database Initialization Complete. System Ready.")

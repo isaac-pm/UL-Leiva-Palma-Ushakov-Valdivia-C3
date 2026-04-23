@@ -33,6 +33,7 @@ services:
       - .env
     volumes:
       - ./backend:/app
+      - ./data:/data
     depends_on:
       db:
         condition: service_healthy
@@ -60,7 +61,9 @@ services:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')\" || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 5 
+      retries: 5
+    networks:
+      - hpdav-network 
   frontend:
     image: node:22.14-alpine
     container_name: hpdav-frontend
