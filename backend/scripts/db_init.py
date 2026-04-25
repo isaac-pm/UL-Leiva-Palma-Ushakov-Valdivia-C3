@@ -187,7 +187,7 @@ def init_db():
         # STRATEGY: Hardcode the resumption parameter here to fix your immediate crash, 
         # or pass it via an environment variable in a production setting.
         # Since it crashed on file 26, we pass resume_from_file=26.
-        ingest_activity_logs(session, resume_from_file=26)
+        ingest_activity_logs(session, resume_from_file=1)
 
 if __name__ == "__main__":
     logger.info("Starting Database Initialization Protocol...")
