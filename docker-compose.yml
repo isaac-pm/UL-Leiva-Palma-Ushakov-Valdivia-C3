@@ -15,7 +15,7 @@ services:
     ports:
       - "${DB_PORT}:5432"
     volumes:
-      - db_data_hpdav:/var/lib/postgresql/data
+      - /mnt/hpdav_data/pg_data:/var/lib/postgresql/data
     healthcheck:
       # Double $$ escapes the variable to be evaluated inside the container shell
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
@@ -33,7 +33,7 @@ services:
       - .env
     volumes:
       - ./backend:/app
-      - ./data:/data
+      - /mnt/hpdav_data/dataset:/data
     depends_on:
       db:
         condition: service_healthy
