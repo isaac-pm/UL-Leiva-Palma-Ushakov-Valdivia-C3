@@ -27,28 +27,30 @@ logger = logging.getLogger("database_init")
 
 # Configure DB URL
 engine = get_engine()
+DATA_ROOT = os.getenv("DATA_PATH", "../data")
 
 INGESTION_PLAN = [
     # Level 1: No dependencies
-    ("../data/Attributes/Buildings.csv", Buildings),
-    ("../data/Attributes/Participants.csv", Participants),
+    (f"{DATA_ROOT}/Attributes/Buildings.csv", Buildings),
+    (f"{DATA_ROOT}/Attributes/Participants.csv", Participants),
     
     # Level 2: Depends on Buildings
-    ("../data/Attributes/Apartments.csv", Apartments),
-    ("../data/Attributes/Employers.csv", Employers),
-    ("../data/Attributes/Pubs.csv", Pubs),
-    ("../data/Attributes/Restaurants.csv", Restaurants),
-    ("../data/Attributes/Schools.csv", Schools),
+    (f"{DATA_ROOT}/Attributes/Apartments.csv", Apartments),
+    (f"{DATA_ROOT}/Attributes/Employers.csv", Employers),
+    (f"{DATA_ROOT}/Attributes/Pubs.csv", Pubs),
+    (f"{DATA_ROOT}/Attributes/Restaurants.csv", Restaurants),
+    (f"{DATA_ROOT}/Attributes/Schools.csv", Schools),
     
     # Level 3: Depends on Employers
-    ("../data/Attributes/Jobs.csv", Jobs),
+    (f"{DATA_ROOT}/Attributes/Jobs.csv", Jobs),
     
     # Level 4: Journals (Depends on Participants & Locations)
-    ("../data/Journals/CheckinJournal.csv", CheckinJournal),
-    ("../data/Journals/FinancialJournal.csv", FinancialJournal),
-    ("../data/Journals/SocialNetwork.csv", SocialNetwork),
-    ("../data/Journals/TravelJournal.csv", TravelJournal),
+    (f"{DATA_ROOT}/Journals/CheckinJournal.csv", CheckinJournal),
+    (f"{DATA_ROOT}/Journals/FinancialJournal.csv", FinancialJournal),
+    (f"{DATA_ROOT}/Journals/SocialNetwork.csv", SocialNetwork),
+    (f"{DATA_ROOT}/Journals/TravelJournal.csv", TravelJournal),
 ]
+DATA_ACTIVITY_PLAN =f"{DATA_ROOT}/Activity Logs"
 
 def parse_broken_array(val_str: Any) -> List[str]:
     """
@@ -125,7 +127,7 @@ def ingest_activity_logs(session: Session, base_dir: str):
     """
     Handles the 18GB multi-file activity log ingestion.
     """
-    log_dir = os.path.join(base_dir, "../data/Activity Logs")
+    log_dir = os.path.join(base_dir, DATA_ACTIVITY_PLAN)
     if not os.path.exists(log_dir):
         logger.warning("Activity Logs directory missing. Skipping.")
         return
