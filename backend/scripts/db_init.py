@@ -300,12 +300,12 @@ def init_db() -> None:
                 )
 
         logger.info(
-            "Starting activity logs from file 55"
+            "Starting activity logs from file 0"
         )
 
         ingest_activity_logs(
             session,
-            resume_from_file=55
+            resume_from_file=0
         )
 
 
