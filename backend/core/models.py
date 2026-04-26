@@ -171,7 +171,7 @@ class ActivityLogs(SQLModel, table=True):
     financialStatus: Optional[str] = Field(default=None)
     dailyFoodBudget: Optional[float] = Field(default=None)
     weeklyExtraBudget: Optional[float] = Field(default=None)
-    metadata: Dict[str, Any] = Field( 
+    file_meta: Dict[str, Any] = Field( 
         default_factory=dict,
         sa_column=Column(JSONB, nullable=False)
     )
