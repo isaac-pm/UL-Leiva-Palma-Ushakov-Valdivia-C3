@@ -137,11 +137,11 @@ def transform_dataframe(
                 )
             )
 
-    if "metadata" in model.model_fields:
+    if "file_meta" in model.model_fields:
         expressions.append(
             pl.struct(
                 [pl.lit(file_name).alias("filename")]
-            ).alias("metadata")
+            ).alias("file_meta")
         )
 
     if expressions:
