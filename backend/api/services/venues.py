@@ -35,39 +35,21 @@ class VenueService:
         try:
             if venue_type == "pub":
                 stmt = (
-                    select(
-                        Pubs.pubId.label("venueId"),
-                        Pubs.location,
-                        Pubs.hourlyCost,
-                        Pubs.maxOccupancy,
-                        Pubs.buildingId,
-                    )
+                    select(Pubs)
                     .order_by(Pubs.pubId)
                     .limit(limit)
                     .offset(offset)
                 )
             elif venue_type == "restaurant":
                 stmt = (
-                    select(
-                        Restaurants.restaurantId.label("venueId"),
-                        Restaurants.location,
-                        Restaurants.foodCost,
-                        Restaurants.maxOccupancy,
-                        Restaurants.buildingId,
-                    )
+                    select(Restaurants)
                     .order_by(Restaurants.restaurantId)
                     .limit(limit)
                     .offset(offset)
                 )
             elif venue_type == "school":
                 stmt = (
-                    select(
-                        Schools.schoolId.label("venueId"),
-                        Schools.location,
-                        Schools.monthlyFees,
-                        Schools.maxEnrollment,
-                        Schools.buildingId,
-                    )
+                    select(Schools)
                     .order_by(Schools.schoolId)
                     .limit(limit)
                     .offset(offset)
@@ -78,7 +60,13 @@ class VenueService:
                     status_code=400,
                 )
             results = session.exec(stmt).all()
-            data = [{**dict(row), "venue_type": venue_type} for row in results]
+            data = []
+            for row in results:
+                row_dict = row.model_dump()
+                id_field = f"{venue_type}Id"
+                row_dict["venueId"] = row_dict.pop(id_field)
+                row_dict["venue_type"] = venue_type
+                data.append(row_dict)
             return Result.ok({"data": data, "venue_type": venue_type, "limit": limit, "offset": offset})
         except Exception as e:
             return Result.fail(f"500_INTERNAL: {str(e)}", status_code=500)

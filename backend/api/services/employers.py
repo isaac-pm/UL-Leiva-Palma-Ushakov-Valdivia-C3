@@ -23,17 +23,13 @@ class EmployerService:
     ) -> Result:
         try:
             stmt = (
-                select(
-                    Employers.employerId,
-                    Employers.location,
-                    Employers.buildingId,
-                )
+                select(Employers)
                 .order_by(Employers.employerId)
                 .limit(limit)
                 .offset(offset)
             )
             results = session.exec(stmt).all()
-            data = [dict(row) for row in results]
+            data = [row.model_dump() for row in results]
             return Result.ok({"data": data, "limit": limit, "offset": offset})
         except Exception as e:
             return Result.fail(f"500_INTERNAL: {str(e)}", status_code=500)

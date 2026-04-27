@@ -30,12 +30,7 @@ class SocialService:
     ) -> Result:
         try:
             stmt = (
-                select(
-                    SocialNetwork.id,
-                    SocialNetwork.participantIdFrom,
-                    SocialNetwork.participantIdTo,
-                    SocialNetwork.timestamp,
-                )
+                select(SocialNetwork)
                 .where(
                     (SocialNetwork.participantIdFrom == participant_id) |
                     (SocialNetwork.participantIdTo == participant_id)
@@ -45,7 +40,7 @@ class SocialService:
                 .offset(offset)
             )
             results = session.exec(stmt).all()
-            data = [dict(row) for row in results]
+            data = [row.model_dump() for row in results]
             return Result.ok({"data": data, "participant_id": participant_id, "limit": limit, "offset": offset})
         except Exception as e:
             return Result.fail(f"500_INTERNAL: {str(e)}", status_code=500)

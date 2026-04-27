@@ -26,20 +26,14 @@ class CheckinService:
     ) -> Result:
         try:
             stmt = (
-                select(
-                    CheckinJournal.id,
-                    CheckinJournal.participantId,
-                    CheckinJournal.timestamp,
-                    CheckinJournal.venueId,
-                    CheckinJournal.venueType,
-                )
+                select(CheckinJournal)
                 .where(CheckinJournal.participantId == participant_id)
                 .order_by(CheckinJournal.timestamp.desc())
                 .limit(limit)
                 .offset(offset)
             )
             results = session.exec(stmt).all()
-            data = [dict(row) for row in results]
+            data = [row.model_dump() for row in results]
             return Result.ok({"data": data, "participant_id": participant_id, "limit": limit, "offset": offset})
         except Exception as e:
             return Result.fail(f"500_INTERNAL: {str(e)}", status_code=500)
