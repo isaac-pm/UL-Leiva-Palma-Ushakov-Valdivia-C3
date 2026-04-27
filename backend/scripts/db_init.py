@@ -1,11 +1,11 @@
 import os
 import re
 import logging
-from typing import Any, List, Type
+from typing import Any, List, Type, Set
 
 import polars as pl
 from polars.exceptions import NoDataError
-from sqlalchemy import insert
+from sqlalchemy import insert, text
 from sqlmodel import Session, SQLModel, select
 
 from core.database import get_engine
@@ -185,6 +185,21 @@ def insert_dataframe_in_chunks(
             return
 
 
+def get_processed_files(session: Session) -> Set[str]:
+    """
+    Queries the database to retrieve a set of filenames that have already been ingested.
+    Uses the JSONB operator ->> to extract the text value.
+    """
+    try:
+        # Select distinct filenames directly from the JSONB column to avoid app-level memory bloat
+        query = text("SELECT DISTINCT file_meta->>'filename' FROM activity_logs WHERE file_meta IS NOT NULL")
+        result = session.execute(query)
+        return {row[0] for row in result if row[0]}
+    except Exception as e:
+        logger.warning(f"Could not fetch processed files (Table might be empty): {e}")
+        return set()
+
+
 # -----------------------------------------------------------------------------
 # Core ingestion
 # -----------------------------------------------------------------------------
@@ -243,7 +258,7 @@ def extract_number(filename: str) -> int:
 
 def ingest_activity_logs(
     session: Session,
-    resume_from_file: int = 1
+    resume_from_file: int = 0
 ) -> None:
     if not os.path.exists(ACTIVITY_LOGS_PATH):
         logger.warning(
@@ -260,10 +275,20 @@ def ingest_activity_logs(
         key=extract_number
     )
 
+    # Fetch the state directly from the database (Passive Idempotency)
+    processed_files = get_processed_files(session)
+    if processed_files:
+        logger.info(f"Detected {len(processed_files)} activity log files already in the database.")
+
     for file_name in files:
         file_number = extract_number(file_name)
 
         if file_number < resume_from_file:
+            continue
+
+        # Skip file if it already exists in the JSONB metadata
+        if file_name in processed_files:
+            logger.info(f"Skipping {file_name}: Already processed.")
             continue
 
         file_path = os.path.join(
@@ -300,7 +325,7 @@ def init_db() -> None:
                 )
 
         logger.info(
-            "Starting activity logs from file 0"
+            "Starting activity logs insertion protocol"
         )
 
         ingest_activity_logs(
