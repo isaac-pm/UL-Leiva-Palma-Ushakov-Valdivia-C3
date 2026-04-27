@@ -69,6 +69,8 @@ services:
     image: cloudflare/cloudflared:latest
     restart: always
     command: tunnel run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    networks:
+      - hpdav-network 
     depends_on:
       - backend
   frontend:
