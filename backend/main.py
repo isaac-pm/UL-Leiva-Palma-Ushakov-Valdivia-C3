@@ -22,7 +22,6 @@ from api.routers import (
 )
 
 tprint("Pura vida harni tsytsky",font="art")
-tprint("Simple as possible as promised bro",font="cybermedum")
 print("Access API docs thorught this endpoint: http://localhost:8000/docs")
 
 @asynccontextmanager
