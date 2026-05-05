@@ -201,7 +201,8 @@ def postgres_copy_stream(
                 buffer.seek(0)
                 
                 # Direct C-level pipeline to PostgreSQL Storage Engine
-                copy_sql = f"COPY {table_name} ({','.join(chunk_df.columns)}) FROM STDIN WITH CSV HEADER"
+                quoted_columns = [f'"{col}"' for col in chunk_df.columns]
+                copy_sql = f"COPY {table_name} ({','.join(quoted_columns)}) FROM STDIN WITH CSV HEADER"
                 
                 # Handle compatibility for both psycopg2 (expert) and psycopg3
                 if hasattr(cursor, 'copy_expert'):
