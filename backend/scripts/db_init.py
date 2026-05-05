@@ -6,12 +6,12 @@ Design decisions
 ----------------
 * Columns are partitioned into disjoint sets (enum / datetime / jsonb / plain-text)
   before any Polars expression is built → impossible to emit duplicate aliases.
-* replace_strict() used instead of deprecated replace(..., default=).
-* Enum cast problem solved via staging table:
+* replace_strict() replaces the deprecated replace(..., default=).
+* Enum + type-mismatch problem solved via staging table:
     COPY  →  TEMP TABLE (all TEXT, no constraints)
-    INSERT INTO real_table SELECT col::pg_enum_type FROM staging
-  This lets PostgreSQL handle the text→enum cast explicitly, which COPY FROM
-  STDIN never does implicitly.
+    INSERT INTO real_table SELECT col::<pg_type> FROM staging
+  Every non-text column gets an explicit cast derived from model.__table__,
+  so PostgreSQL never has to guess and never rejects a valid value.
 * Staging table name is unique per call (uuid suffix) → safe under concurrency.
 * Index drop/recreate around the activity-log bulk load (standard DBA pattern).
 * map_elements replaced with vectorised Polars expressions throughout.
@@ -53,9 +53,9 @@ engine = get_engine()
 
 DATA_ROOT           = os.getenv("DATA_PATH", "../data")
 ACTIVITY_LOGS_DIR   = os.path.join(DATA_ROOT, "Activity Logs")
-SCHEMA_INFER_ROWS   = 2_000     # rows used for CSV schema inference
-STREAMING_THRESHOLD = 500_000   # files larger than this are chunked
-STREAM_CHUNK_ROWS   = 200_000   # rows per chunk when streaming
+SCHEMA_INFER_ROWS   = 2_000
+STREAMING_THRESHOLD = 500_000
+STREAM_CHUNK_ROWS   = 200_000
 
 NULL_VALUES = ["", "NA", "null", "NULL", "N/A", "n/a", "NaN", "nan"]
 
@@ -75,7 +75,7 @@ INGESTION_PLAN: List[Tuple[str, Type[SQLModel]]] = [
 ]
 
 # ---------------------------------------------------------------------------
-# Normalisation maps  (lowercased-stripped source value → canonical DB value)
+# Normalisation maps
 # ---------------------------------------------------------------------------
 ENUM_MAPS: Dict[str, Dict[str, str]] = {
     "currentMode": {
@@ -86,7 +86,7 @@ ENUM_MAPS: Dict[str, Dict[str, str]] = {
         "atrestaurant":    "AtRestaurant",
     },
     "buildingType": {
-        "residental":  "Residential",   # typo present in source data
+        "residental":  "Residential",
         "residential": "Residential",
         "commercial":  "Commercial",
         "school":      "School",
@@ -130,18 +130,38 @@ JSONB_COLS: Set[str] = {"daysToWork", "units"}
 
 
 # ---------------------------------------------------------------------------
-# Enum column introspection
+# Column type introspection
 # ---------------------------------------------------------------------------
 
-def _pg_enum_columns(model: Type[SQLModel]) -> Dict[str, str]:
+# SQLAlchemy type → PostgreSQL cast string
+# Only types that differ from TEXT need an entry here.
+_SA_TYPE_TO_PG: Dict[type, str] = {
+    sa.Integer:          "INTEGER",
+    sa.BigInteger:       "BIGINT",
+    sa.SmallInteger:     "SMALLINT",
+    sa.Numeric:          "NUMERIC",
+    sa.Float:            "DOUBLE PRECISION",
+    sa.Boolean:          "BOOLEAN",
+    sa.Date:             "DATE",
+    sa.Time:             "TIME",
+    sa.DateTime:         "TIMESTAMPTZ",
+    sa.dialects.postgresql.JSONB: "JSONB",
+    sa.dialects.postgresql.UUID:  "UUID",
+}
+
+
+def _pg_cast_map(model: Type[SQLModel]) -> Dict[str, str]:
     """
-    Return {field_name: pg_type_name} for every column whose SQLAlchemy type
-    is a PostgreSQL enum (sa.Enum with a .name attribute).
+    Return {column_name: pg_cast_expression_fragment} for every column
+    whose type is NOT plain TEXT/VARCHAR.
 
-    Example: {"buildingType": "enumbuildingtype"}
+    Examples:
+        "buildingId"   → "INTEGER"
+        "buildingType" → "enumbuildingtype"   (native PG enum)
+        "units"        → "JSONB"
+        "timestamp"    → "TIMESTAMPTZ"
 
-    Derived from __table__ — the ground truth — so it handles
-    Optional[SomeEnum] and any other wrapper transparently.
+    Columns not in the returned dict are TEXT and need no cast.
     """
     result: Dict[str, str] = {}
     try:
@@ -150,8 +170,20 @@ def _pg_enum_columns(model: Type[SQLModel]) -> Dict[str, str]:
         return result
 
     for col in table_obj.columns:
+        col_type = type(col.type)
+
+        # Native PG enum  →  use the enum type name directly
         if isinstance(col.type, sa.Enum) and getattr(col.type, "name", None):
             result[col.name] = col.type.name
+            continue
+
+        # Walk the MRO to find a match in our map
+        for sa_cls, pg_str in _SA_TYPE_TO_PG.items():
+            if issubclass(col_type, sa_cls):
+                result[col.name] = pg_str
+                break
+        # VARCHAR / TEXT → no entry needed (staging columns are already TEXT)
+
     return result
 
 
@@ -226,14 +258,14 @@ def _recreate_indexes(session: Session, ddls: List[str], table: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# DataFrame transformation  (strict column partitioning — zero duplicate risk)
+# DataFrame transformation  (strictly disjoint column passes)
 # ---------------------------------------------------------------------------
 
 def _transform(df: pl.DataFrame, file_name: str, model: Type[SQLModel]) -> pl.DataFrame:
     """
-    Normalise *df* using strictly disjoint column sets per pass.
+    Normalise *df* in five passes, each operating on a disjoint set of columns.
 
-    Bucket assignment (each column belongs to exactly one bucket):
+    Bucket priority (a column belongs to exactly one bucket):
         jsonb_cols    = JSONB_COLS ∩ present
         datetime_cols = DATETIME_COLS ∩ present
         enum_cols     = ENUM_MAPS.keys() ∩ present
@@ -253,7 +285,7 @@ def _transform(df: pl.DataFrame, file_name: str, model: Type[SQLModel]) -> pl.Da
     enum_cols     = present & set(ENUM_MAPS.keys())
     special_cols  = jsonb_cols | datetime_cols | enum_cols
 
-    # Pass 1 — plain Utf8 sanitise (null bytes + whitespace)
+    # Pass 1 — plain Utf8 sanitise
     plain_exprs = [
         pl.col(c).str.replace_all(r"\x00", "").str.strip_chars().alias(c)
         for c in df.columns
@@ -263,7 +295,6 @@ def _transform(df: pl.DataFrame, file_name: str, model: Type[SQLModel]) -> pl.Da
         df = df.with_columns(plain_exprs)
 
     # Pass 2 — enum normalisation
-    # replace_strict maps known values; unknown/null → None (safe for Optional fields)
     enum_exprs = [
         pl.col(c)
         .cast(pl.Utf8)
@@ -289,7 +320,7 @@ def _transform(df: pl.DataFrame, file_name: str, model: Type[SQLModel]) -> pl.Da
     if dt_exprs:
         df = df.with_columns(dt_exprs)
 
-    # Pass 4 — JSONB columns (fully vectorised, no map_elements)
+    # Pass 4 — JSONB (fully vectorised)
     jsonb_exprs = [
         pl.when(pl.col(c).is_null() | (pl.col(c).cast(pl.Utf8).str.strip_chars() == ""))
         .then(pl.lit("[]"))
@@ -304,7 +335,7 @@ def _transform(df: pl.DataFrame, file_name: str, model: Type[SQLModel]) -> pl.Da
     if jsonb_exprs:
         df = df.with_columns(jsonb_exprs)
 
-    # Pass 5 — file metadata (only when model declares the field)
+    # Pass 5 — file metadata
     if "file_meta" in model_cols:
         df = df.with_columns(
             pl.lit(json.dumps({"file": file_name})).alias("file_meta")
@@ -314,30 +345,28 @@ def _transform(df: pl.DataFrame, file_name: str, model: Type[SQLModel]) -> pl.Da
 
 
 # ---------------------------------------------------------------------------
-# Core COPY routine — staging table pattern
+# Core COPY routine — staging table + full type-cast INSERT
 # ---------------------------------------------------------------------------
 
 def _copy_frame(
     cursor,
     df: pl.DataFrame,
     table: str,
-    pg_enum_cols: Dict[str, str],
+    cast_map: Dict[str, str],
 ) -> int:
     """
-    Load *df* into *table* via a two-step process:
+    Two-step load that bypasses every PostgreSQL type-mismatch error:
 
-    Step 1  COPY frame → temporary all-TEXT staging table (zero type constraints).
-    Step 2  INSERT INTO real table SELECT … ::pg_enum_type FROM staging.
+    Step 1  COPY frame into a temporary all-TEXT table (no type constraints).
+    Step 2  INSERT INTO real table with explicit ::type casts for every
+            non-text column derived from cast_map.
 
-    Root cause this solves:
-        PostgreSQL COPY FROM STDIN does NOT implicitly cast TEXT → enum.
-        Any native-enum column raises "invalid input value for enum <type>"
-        even when the string value is perfectly valid.
-        The staging pattern delegates the cast to a regular INSERT,
-        where PostgreSQL's implicit-cast rules apply normally.
-
-    The staging table name contains a UUID suffix to allow safe concurrent use.
-    ON COMMIT DROP ensures it is always cleaned up.
+    Why not COPY directly into the real table?
+    - COPY FROM STDIN does NOT apply implicit casts.
+    - Native enum columns reject any text value, even valid ones.
+    - Integer / numeric / boolean columns reject text representations.
+    The staging approach delegates all casting to a regular INSERT/SELECT,
+    where PostgreSQL's normal implicit-cast and explicit-cast rules apply.
     """
     if df.is_empty():
         return 0
@@ -346,11 +375,11 @@ def _copy_frame(
     col_sql = ", ".join(f'"{c}"' for c in cols)
     staging = f"_stage_{table}_{uuid.uuid4().hex[:10]}"
 
-    # Step 1a — create temporary all-text staging table
+    # Step 1a — temporary all-text staging table
     text_defs = ", ".join(f'"{c}" TEXT' for c in cols)
     cursor.execute(f"CREATE TEMP TABLE {staging} ({text_defs}) ON COMMIT DROP")
 
-    # Step 1b — COPY raw text into staging
+    # Step 1b — COPY raw text into staging (always succeeds: every column is TEXT)
     buf = io.BytesIO()
     df.write_csv(buf, separator="\t", include_header=False, null_value="")
     buf.seek(0)
@@ -360,12 +389,16 @@ def _copy_frame(
         buf,
     )
 
-    # Step 2 — INSERT with explicit casts for enum columns
-    select_exprs = [
-        # NULLIF converts empty string → NULL before the enum cast
-        f'NULLIF(TRIM("{c}"), \'\')::{pg_enum_cols[c]}' if c in pg_enum_cols else f'"{c}"'
-        for c in cols
-    ]
+    # Step 2 — INSERT with explicit casts
+    # NULLIF("col", '') ensures empty strings become NULL before any cast,
+    # preventing "invalid input syntax for type integer: ''" style errors.
+    select_exprs = []
+    for c in cols:
+        if c in cast_map:
+            select_exprs.append(f'NULLIF(TRIM("{c}"), \'\')::{cast_map[c]}')
+        else:
+            select_exprs.append(f'"{c}"')  # TEXT column — no cast needed
+
     cursor.execute(
         f"INSERT INTO {table} ({col_sql}) "
         f"SELECT {', '.join(select_exprs)} FROM {staging}"
@@ -379,11 +412,6 @@ def _copy_frame(
 # ---------------------------------------------------------------------------
 
 def _ingest_file(session: Session, path: str, model: Type[SQLModel]) -> int:
-    """
-    Read *path*, transform, and bulk-load into *model*'s table.
-    Files above STREAMING_THRESHOLD rows are processed in slices to bound memory.
-    Returns total rows inserted; 0 for missing or empty files.
-    """
     if not os.path.exists(path):
         log.warning("File not found, skipping: %s", path)
         return 0
@@ -407,14 +435,14 @@ def _ingest_file(session: Session, path: str, model: Type[SQLModel]) -> int:
         log.warning("%s — empty file, skipping", file_name)
         return 0
 
-    row_count    = df.height
-    pg_enum_cols = _pg_enum_columns(model)
-    conn         = session.connection().connection
+    row_count = df.height
+    cast_map  = _pg_cast_map(model)
+    conn      = session.connection().connection
 
     with conn.cursor() as cur:
         if row_count <= STREAMING_THRESHOLD:
             df    = _transform(df, file_name, model)
-            total = _copy_frame(cur, df, table, pg_enum_cols)
+            total = _copy_frame(cur, df, table, cast_map)
         else:
             log.info(
                 "%s — %d rows, streaming in chunks of %d",
@@ -423,7 +451,7 @@ def _ingest_file(session: Session, path: str, model: Type[SQLModel]) -> int:
             total = 0
             for start in range(0, row_count, STREAM_CHUNK_ROWS):
                 chunk  = _transform(df.slice(start, STREAM_CHUNK_ROWS), file_name, model)
-                total += _copy_frame(cur, chunk, table, pg_enum_cols)
+                total += _copy_frame(cur, chunk, table, cast_map)
                 log.debug("%s — %d / %d rows", file_name, total, row_count)
 
     session.commit()
