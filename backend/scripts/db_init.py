@@ -1,3 +1,9 @@
+"""
+Author: geralm
+Refactored for High-Performance ELT-style Bulk Ingestion.
+Target: PostgreSQL via C-Level COPY Protocol with Polars Vectorized Sanitization.
+"""
+
 import os
 import re
 import io
@@ -7,6 +13,7 @@ import logging
 from typing import Type, Set
 
 import polars as pl
+from polars.exceptions import NoDataError
 from sqlalchemy import text
 from sqlmodel import Session, SQLModel, select
 
@@ -41,7 +48,6 @@ logger = logging.getLogger("database_init")
 # -----------------------------------------------------------------------------
 engine = get_engine()
 DATA_ROOT = os.getenv("DATA_PATH", "../data")
-BATCH_SIZE = 100_000  # Number of rows per memory chunk during streaming
 CSV_SCHEMA_INFERENCE = 10_000
 
 INGESTION_PLAN = [
@@ -62,13 +68,10 @@ INGESTION_PLAN = [
 ACTIVITY_LOGS_PATH = f"{DATA_ROOT}/Activity Logs"
 
 # -----------------------------------------------------------------------------
-# Idempotency & State Management
+# State Management (Idempotency)
 # -----------------------------------------------------------------------------
 def setup_ingestion_state(session: Session) -> None:
-    """
-    Creates an independent state table to track processed files.
-    This avoids the catastrophic O(N) JSONB full table scan on ActivityLogs.
-    """
+    """Creates a dedicated state table to bypass slow JSONB scans."""
     session.execute(text("""
         CREATE TABLE IF NOT EXISTS ingestion_state (
             filename VARCHAR PRIMARY KEY,
@@ -78,7 +81,7 @@ def setup_ingestion_state(session: Session) -> None:
     session.commit()
 
 def get_processed_files(session: Session) -> Set[str]:
-    """Retrieves the set of already processed files in O(1) index time."""
+    """Retrieves processed files with O(1) index performance."""
     try:
         result = session.execute(text("SELECT filename FROM ingestion_state"))
         return {row[0] for row in result}
@@ -87,7 +90,7 @@ def get_processed_files(session: Session) -> Set[str]:
         return set()
 
 def mark_file_processed(session: Session, filename: str) -> None:
-    """Marks a file as processed immediately after successful COMMIT."""
+    """Atomically marks a file as processed."""
     session.execute(
         text("INSERT INTO ingestion_state (filename) VALUES (:f) ON CONFLICT DO NOTHING"),
         {"f": filename}
@@ -95,43 +98,53 @@ def mark_file_processed(session: Session, filename: str) -> None:
     session.commit()
 
 # -----------------------------------------------------------------------------
-# DataFrame Transformations
+# Fierce Vectorized Transformations
 # -----------------------------------------------------------------------------
-def sanitize_dataframe(df: pl.DataFrame) -> pl.DataFrame:
-    """Strips null bytes from all string columns to prevent PostgreSQL COPY errors."""
-    string_columns = [col for col, dtype in df.schema.items() if dtype == pl.Utf8]
-    if not string_columns:
-        return df
-    
-    return df.with_columns([
-        pl.col(col).str.replace_all("\x00", "")
-        for col in string_columns
-    ])
-
 def transform_dataframe(df: pl.DataFrame, file_name: str, model: Type[SQLModel]) -> pl.DataFrame:
     """
-    Applies strict vector transformations mapped precisely to the SQLModel definitions.
-    Zero Python loop overhead per row.
+    Cleanses and maps the raw DataFrame strictly to the SQLModel contract.
+    Ensures zero Text-to-Binary impedance mismatch during the COPY command.
     """
-    expressions = []
+    # 1. Drop unknown columns immediately to save processing power
+    valid_columns = [col for col in df.columns if col in model.model_fields]
+    df = df.select(valid_columns)
 
-    # 1. Enum Correction
+    expressions = []
+    
+    # Identify all string columns
+    string_cols = [col for col, dtype in df.schema.items() if dtype == pl.Utf8]
+
+    # 2. Aggressive String Cleansing (Fixes Enums and stray quotes natively)
+    for col in string_cols:
+        expressions.append(
+            pl.col(col)
+            .str.replace_all("\x00", "")        # Remove null bytes
+            .str.strip_chars(' \'"')            # Strip leading/trailing whitespaces and literal quotes
+            .alias(col)
+        )
+    
+    if expressions:
+        df = df.with_columns(expressions)
+        expressions = [] # Reset for next phase
+
+    # 3. Model-Specific Corrections
     if "buildingType" in df.columns:
         expressions.append(
             pl.col("buildingType").str.replace("Residental", "Residential")
         )
 
-    # 2. Strict JSONB Array Formatting
+    # 4. Strict JSONB Array Formatting
     for col in {"daysToWork", "units"}.intersection(df.columns):
         expressions.append(
             pl.when(pl.col(col).is_null() | (pl.col(col) == ""))
               .then(pl.lit("[]"))
               .otherwise(
-                  pl.col(col).str.replace_all("'", '"')  # Ensure double quotes for valid JSON
+                  # Force double quotes inside the array for strict JSON compliance
+                  pl.format("[{}]", pl.col(col).str.replace_all("'", '"'))
               ).alias(col)
         )
 
-    # 3. Time Parsing
+    # 5. Time Parsing
     for col in {"startTime", "endTime", "checkInTime", "checkOutTime"}.intersection(df.columns):
         if df.schema.get(col) == pl.Utf8:
             expressions.append(
@@ -141,19 +154,17 @@ def transform_dataframe(df: pl.DataFrame, file_name: str, model: Type[SQLModel])
     if expressions:
         df = df.with_columns(expressions)
 
-    # 4. JSONB file_meta injection
+    # 6. JSONB Meta-data Injection
     if "file_meta" in model.model_fields:
         meta_json_str = json.dumps({"filename": file_name})
         df = df.with_columns(pl.lit(meta_json_str).alias("file_meta"))
 
-    # 5. Native UUID Injection (Handles default_factory bypass in COPY)
+    # 7. Native Python UUID Generation (Only if missing from CSV)
     if "id" in model.model_fields and "id" not in df.columns:
         uuids = [str(uuid.uuid4()) for _ in range(df.height)]
         df = df.with_columns(pl.Series("id", uuids))
 
-    # 6. Schema Contract Enforcement: Drop columns that do not exist in the model
-    valid_columns = [col for col in df.columns if col in model.model_fields]
-    return df.select(valid_columns)
+    return df
 
 # -----------------------------------------------------------------------------
 # High-Performance Core Engine
@@ -165,14 +176,14 @@ def postgres_copy_stream(
     file_name: str
 ) -> None:
     """
-    The core ingestion engine. Uses Polars batched reading and PostgreSQL COPY 
-    to stream millions of rows with a constant, low-memory footprint.
+    Streams CSVs through Polars directly into PostgreSQL via COPY protocol.
+    Maintains O(1) memory footprint and bypasses the ORM completely.
     """
     table_name = model.__tablename__
     connection = session.connection().connection
     
     try:
-        # Initialize batched reader. This avoids loading massive CSVs into RAM.
+        # Polars batched reader handles files of infinite size securely
         reader = pl.read_csv_batched(
             file_path,
             null_values=["N/A", "NA", "null", "", "NULL"],
@@ -183,7 +194,6 @@ def postgres_copy_stream(
         batches = reader.next_batches(1)
         total_inserted = 0
         
-        # Open raw psycopg connection cursor
         with connection.cursor() as cursor:
             while batches:
                 chunk_df = batches[0]
@@ -192,19 +202,19 @@ def postgres_copy_stream(
                     batches = reader.next_batches(1)
                     continue
                     
-                chunk_df = sanitize_dataframe(chunk_df)
+                # Transform and sanitize
                 chunk_df = transform_dataframe(chunk_df, file_name, model)
                 
-                # Write transformed batch to an ephemeral in-memory CSV buffer
+                # Write to ephemeral in-memory buffer
                 buffer = io.BytesIO()
-                chunk_df.write_csv(buffer)
+                chunk_df.write_csv(buffer, quote_style="necessary")
                 buffer.seek(0)
                 
-                # Direct C-level pipeline to PostgreSQL Storage Engine
+                # Double quote columns to enforce PostgreSQL Case-Sensitivity ("participantId")
                 quoted_columns = [f'"{col}"' for col in chunk_df.columns]
-                copy_sql = f"COPY {table_name} ({','.join(quoted_columns)}) FROM STDIN WITH CSV HEADER"
+                copy_sql = f'COPY {table_name} ({",".join(quoted_columns)}) FROM STDIN WITH CSV HEADER'
                 
-                # Handle compatibility for both psycopg2 (expert) and psycopg3
+                # Execute C-Level protocol
                 if hasattr(cursor, 'copy_expert'):
                     cursor.copy_expert(copy_sql, buffer)
                 else:
@@ -214,7 +224,7 @@ def postgres_copy_stream(
                 total_inserted += chunk_df.height
                 batches = reader.next_batches(1)
                 
-        # Entire file successfully written to WAL; commit transaction
+        # Entire file successfully written
         session.commit()
         logger.info(f"{file_name}: Streaming successful. Inserted {total_inserted} rows via COPY.")
         
@@ -233,13 +243,12 @@ def bulk_insert_with_polars(session: Session, file_path: str, model: Type[SQLMod
 
     try:
         postgres_copy_stream(session, file_path, model, file_name)
-        # Register idempotency only if the transaction succeeded
         mark_file_processed(session, file_name)
-    except Exception as e:
+    except Exception:
         logger.error(f"Skipping registration of {file_name} due to failure.")
 
 # -----------------------------------------------------------------------------
-# Activity Logs Iteration
+# Iteration Protocol
 # -----------------------------------------------------------------------------
 def extract_number(filename: str) -> int:
     match = re.search(r"\d+", filename)
@@ -273,16 +282,14 @@ def ingest_activity_logs(session: Session, resume_from_file: int = 0) -> None:
         bulk_insert_with_polars(session, file_path, ActivityLogs)
 
 # -----------------------------------------------------------------------------
-# DB Initialization Protocol
+# Initialization
 # -----------------------------------------------------------------------------
 def init_db() -> None:
     SQLModel.metadata.create_all(engine)
 
     with Session(engine) as session:
-        # Initialize safe idempotency layer
         setup_ingestion_state(session)
         
-        # Check if core attributes exist
         already_loaded = session.exec(select(Participants).limit(1)).first()
 
         if not already_loaded:
