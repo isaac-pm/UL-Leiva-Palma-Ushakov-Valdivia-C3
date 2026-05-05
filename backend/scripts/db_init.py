@@ -1,11 +1,13 @@
 import os
 import re
+import io
+import json
+import uuid
 import logging
-from typing import Any, List, Type, Set
+from typing import Type, Set
 
 import polars as pl
-from polars.exceptions import NoDataError
-from sqlalchemy import insert, text
+from sqlalchemy import text
 from sqlmodel import Session, SQLModel, select
 
 from core.database import get_engine
@@ -26,7 +28,7 @@ from core.models import (
 )
 
 # -----------------------------------------------------------------------------
-# Logging
+# Logging Configuration
 # -----------------------------------------------------------------------------
 logging.basicConfig(
     level=logging.INFO,
@@ -35,11 +37,11 @@ logging.basicConfig(
 logger = logging.getLogger("database_init")
 
 # -----------------------------------------------------------------------------
-# Config
+# Configuration & Constants
 # -----------------------------------------------------------------------------
 engine = get_engine()
 DATA_ROOT = os.getenv("DATA_PATH", "../data")
-CHUNK_SIZE = 15_000
+BATCH_SIZE = 100_000  # Number of rows per memory chunk during streaming
 CSV_SCHEMA_INFERENCE = 10_000
 
 INGESTION_PLAN = [
@@ -59,155 +61,168 @@ INGESTION_PLAN = [
 
 ACTIVITY_LOGS_PATH = f"{DATA_ROOT}/Activity Logs"
 
-ARRAY_COLUMNS = {"daysToWork", "units"}
-TIME_COLUMNS = {
-    "startTime",
-    "endTime",
-    "checkInTime",
-    "checkOutTime",
-}
+# -----------------------------------------------------------------------------
+# Idempotency & State Management
+# -----------------------------------------------------------------------------
+def setup_ingestion_state(session: Session) -> None:
+    """
+    Creates an independent state table to track processed files.
+    This avoids the catastrophic O(N) JSONB full table scan on ActivityLogs.
+    """
+    session.execute(text("""
+        CREATE TABLE IF NOT EXISTS ingestion_state (
+            filename VARCHAR PRIMARY KEY,
+            processed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        )
+    """))
+    session.commit()
 
+def get_processed_files(session: Session) -> Set[str]:
+    """Retrieves the set of already processed files in O(1) index time."""
+    try:
+        result = session.execute(text("SELECT filename FROM ingestion_state"))
+        return {row[0] for row in result}
+    except Exception as e:
+        logger.warning(f"Could not fetch ingestion state: {e}")
+        return set()
+
+def mark_file_processed(session: Session, filename: str) -> None:
+    """Marks a file as processed immediately after successful COMMIT."""
+    session.execute(
+        text("INSERT INTO ingestion_state (filename) VALUES (:f) ON CONFLICT DO NOTHING"),
+        {"f": filename}
+    )
+    session.commit()
 
 # -----------------------------------------------------------------------------
-# Helpers
+# DataFrame Transformations
 # -----------------------------------------------------------------------------
-def parse_broken_array(value: Any) -> List[str]:
-    if not isinstance(value, str) or not value.strip():
-        return []
-
-    cleaned = value.strip("[]").strip()
-
-    if not cleaned:
-        return []
-
-    return [
-        item.strip().strip("'\"")
-        for item in cleaned.split(",")
-    ]
-
-
 def sanitize_dataframe(df: pl.DataFrame) -> pl.DataFrame:
-    string_columns = [
-        col for col, dtype in df.schema.items()
-        if dtype == pl.Utf8
-    ]
-
+    """Strips null bytes from all string columns to prevent PostgreSQL COPY errors."""
+    string_columns = [col for col, dtype in df.schema.items() if dtype == pl.Utf8]
     if not string_columns:
         return df
-
+    
     return df.with_columns([
         pl.col(col).str.replace_all("\x00", "")
         for col in string_columns
     ])
 
-
-def transform_dataframe(
-    df: pl.DataFrame,
-    file_name: str,
-    model: Type[SQLModel]
-) -> pl.DataFrame:
+def transform_dataframe(df: pl.DataFrame, file_name: str, model: Type[SQLModel]) -> pl.DataFrame:
     """
-    Apply all transformations in a single pass as much as possible.
+    Applies strict vector transformations mapped precisely to the SQLModel definitions.
+    Zero Python loop overhead per row.
     """
     expressions = []
 
+    # 1. Enum Correction
     if "buildingType" in df.columns:
         expressions.append(
-            pl.col("buildingType").str.replace(
-                "Residental",
-                "Residential"
-            )
+            pl.col("buildingType").str.replace("Residental", "Residential")
         )
 
-    for col in ARRAY_COLUMNS.intersection(df.columns):
+    # 2. Strict JSONB Array Formatting
+    for col in {"daysToWork", "units"}.intersection(df.columns):
         expressions.append(
-            pl.col(col).map_elements(
-                parse_broken_array,
-                return_dtype=pl.List(pl.Utf8)
-            )
+            pl.when(pl.col(col).is_null() | (pl.col(col) == ""))
+              .then(pl.lit("[]"))
+              .otherwise(
+                  pl.col(col).str.replace_all("'", '"')  # Ensure double quotes for valid JSON
+              ).alias(col)
         )
 
-    for col in TIME_COLUMNS.intersection(df.columns):
-        if df.schema[col] == pl.Utf8:
+    # 3. Time Parsing
+    for col in {"startTime", "endTime", "checkInTime", "checkOutTime"}.intersection(df.columns):
+        if df.schema.get(col) == pl.Utf8:
             expressions.append(
-                pl.col(col).str.strptime(
-                    pl.Time,
-                    "%I:%M:%S %p",
-                    strict=False
-                )
+                pl.col(col).str.strptime(pl.Time, "%I:%M:%S %p", strict=False)
             )
-
-    if "file_meta" in model.model_fields:
-        expressions.append(
-            pl.struct(
-                [pl.lit(file_name).alias("filename")]
-            ).alias("file_meta")
-        )
 
     if expressions:
         df = df.with_columns(expressions)
 
-    return df
+    # 4. JSONB file_meta injection
+    if "file_meta" in model.model_fields:
+        meta_json_str = json.dumps({"filename": file_name})
+        df = df.with_columns(pl.lit(meta_json_str).alias("file_meta"))
 
+    # 5. Native UUID Injection (Handles default_factory bypass in COPY)
+    if "id" in model.model_fields and "id" not in df.columns:
+        uuids = [str(uuid.uuid4()) for _ in range(df.height)]
+        df = df.with_columns(pl.Series("id", uuids))
 
-def insert_dataframe_in_chunks(
-    session: Session,
-    df: pl.DataFrame,
-    model: Type[SQLModel],
+    # 6. Schema Contract Enforcement: Drop columns that do not exist in the model
+    valid_columns = [col for col in df.columns if col in model.model_fields]
+    return df.select(valid_columns)
+
+# -----------------------------------------------------------------------------
+# High-Performance Core Engine
+# -----------------------------------------------------------------------------
+def postgres_copy_stream(
+    session: Session, 
+    file_path: str, 
+    model: Type[SQLModel], 
     file_name: str
 ) -> None:
-    total_rows = df.height
-
-    for offset in range(0, total_rows, CHUNK_SIZE):
-        chunk_df = df.slice(offset, CHUNK_SIZE)
-        records = chunk_df.to_dicts()
-
-        try:
-            session.execute(insert(model), records)
-            session.commit()
-
-            logger.info(
-                f"{file_name}: inserted rows "
-                f"{offset} - {min(offset + CHUNK_SIZE, total_rows)}"
-            )
-
-        except Exception as exc:
-            session.rollback()
-
-            logger.error(
-                f"Chunk insert failed for {file_name}: "
-                f"{str(exc)[:200]}"
-            )
-
-            logger.warning(
-                f"Skipping remaining rows in {file_name}"
-            )
-            return
-
-
-def get_processed_files(session: Session) -> Set[str]:
     """
-    Queries the database to retrieve a set of filenames that have already been ingested.
-    Uses the JSONB operator ->> to extract the text value.
+    The core ingestion engine. Uses Polars batched reading and PostgreSQL COPY 
+    to stream millions of rows with a constant, low-memory footprint.
     """
+    table_name = model.__tablename__
+    connection = session.connection().connection
+    
     try:
-        # Select distinct filenames directly from the JSONB column to avoid app-level memory bloat
-        query = text("SELECT DISTINCT file_meta->>'filename' FROM activity_logs WHERE file_meta IS NOT NULL")
-        result = session.execute(query)
-        return {row[0] for row in result if row[0]}
-    except Exception as e:
-        logger.warning(f"Could not fetch processed files (Table might be empty): {e}")
-        return set()
+        # Initialize batched reader. This avoids loading massive CSVs into RAM.
+        reader = pl.read_csv_batched(
+            file_path,
+            null_values=["N/A", "NA", "null", "", "NULL"],
+            infer_schema_length=CSV_SCHEMA_INFERENCE,
+            ignore_errors=False
+        )
+        
+        batches = reader.next_batches(1)
+        total_inserted = 0
+        
+        # Open raw psycopg connection cursor
+        with connection.cursor() as cursor:
+            while batches:
+                chunk_df = batches[0]
+                
+                if chunk_df.is_empty():
+                    batches = reader.next_batches(1)
+                    continue
+                    
+                chunk_df = sanitize_dataframe(chunk_df)
+                chunk_df = transform_dataframe(chunk_df, file_name, model)
+                
+                # Write transformed batch to an ephemeral in-memory CSV buffer
+                buffer = io.BytesIO()
+                chunk_df.write_csv(buffer)
+                buffer.seek(0)
+                
+                # Direct C-level pipeline to PostgreSQL Storage Engine
+                copy_sql = f"COPY {table_name} ({','.join(chunk_df.columns)}) FROM STDIN WITH CSV HEADER"
+                
+                # Handle compatibility for both psycopg2 (expert) and psycopg3
+                if hasattr(cursor, 'copy_expert'):
+                    cursor.copy_expert(copy_sql, buffer)
+                else:
+                    with cursor.copy(copy_sql) as copy:
+                        copy.write(buffer.read())
+                
+                total_inserted += chunk_df.height
+                batches = reader.next_batches(1)
+                
+        # Entire file successfully written to WAL; commit transaction
+        session.commit()
+        logger.info(f"{file_name}: Streaming successful. Inserted {total_inserted} rows via COPY.")
+        
+    except Exception as exc:
+        session.rollback()
+        logger.error(f"Critical failure streaming {file_name}. Rollback executed. Error: {exc}")
+        raise
 
-
-# -----------------------------------------------------------------------------
-# Core ingestion
-# -----------------------------------------------------------------------------
-def bulk_insert_with_polars(
-    session: Session,
-    file_path: str,
-    model: Type[SQLModel]
-) -> None:
+def bulk_insert_with_polars(session: Session, file_path: str, model: Type[SQLModel]) -> None:
     if not os.path.exists(file_path):
         logger.warning(f"File not found: {file_path}")
         return
@@ -216,69 +231,32 @@ def bulk_insert_with_polars(
     logger.info(f"Processing {file_name}")
 
     try:
-        df = pl.read_csv(
-            file_path,
-            null_values=["N/A", "NA", "null", "", "NULL"],
-            infer_schema_length=CSV_SCHEMA_INFERENCE,
-            ignore_errors=False,
-        )
-
-    except NoDataError:
-        logger.error(f"Empty or corrupted file: {file_name}")
-        return
-
-    except Exception as exc:
-        logger.error(
-            f"Failed to read {file_name}: {exc}"
-        )
-        return
-
-    if df.is_empty():
-        logger.warning(f"Skipping empty file: {file_name}")
-        return
-
-    df = sanitize_dataframe(df)
-    df = transform_dataframe(df, file_name, model)
-
-    insert_dataframe_in_chunks(
-        session=session,
-        df=df,
-        model=model,
-        file_name=file_name
-    )
-
+        postgres_copy_stream(session, file_path, model, file_name)
+        # Register idempotency only if the transaction succeeded
+        mark_file_processed(session, file_name)
+    except Exception as e:
+        logger.error(f"Skipping registration of {file_name} due to failure.")
 
 # -----------------------------------------------------------------------------
-# Activity logs
+# Activity Logs Iteration
 # -----------------------------------------------------------------------------
 def extract_number(filename: str) -> int:
     match = re.search(r"\d+", filename)
     return int(match.group()) if match else 0
 
-
-def ingest_activity_logs(
-    session: Session,
-    resume_from_file: int = 0
-) -> None:
+def ingest_activity_logs(session: Session, resume_from_file: int = 0) -> None:
     if not os.path.exists(ACTIVITY_LOGS_PATH):
-        logger.warning(
-            f"Missing directory: {ACTIVITY_LOGS_PATH}"
-        )
+        logger.warning(f"Missing directory: {ACTIVITY_LOGS_PATH}")
         return
 
     files = sorted(
-        (
-            f for f in os.listdir(ACTIVITY_LOGS_PATH)
-            if f.startswith("ParticipantStatusLogs")
-            and f.endswith(".csv")
-        ),
+        (f for f in os.listdir(ACTIVITY_LOGS_PATH) if f.startswith("ParticipantStatusLogs") and f.endswith(".csv")),
         key=extract_number
     )
 
-    # Fetch the state directly from the database (Passive Idempotency)
     processed_files = get_processed_files(session)
     if processed_files:
-        logger.info(f"Detected {len(processed_files)} activity log files already in the database.")
+        logger.info(f"Detected {len(processed_files)} activity log files already safely stored.")
 
     for file_name in files:
         file_number = extract_number(file_name)
@@ -286,52 +264,35 @@ def ingest_activity_logs(
         if file_number < resume_from_file:
             continue
 
-        # Skip file if it already exists in the JSONB metadata
         if file_name in processed_files:
             logger.info(f"Skipping {file_name}: Already processed.")
             continue
 
-        file_path = os.path.join(
-            ACTIVITY_LOGS_PATH,
-            file_name
-        )
-
-        bulk_insert_with_polars(
-            session,
-            file_path,
-            ActivityLogs
-        )
-
+        file_path = os.path.join(ACTIVITY_LOGS_PATH, file_name)
+        bulk_insert_with_polars(session, file_path, ActivityLogs)
 
 # -----------------------------------------------------------------------------
-# DB initialization
+# DB Initialization Protocol
 # -----------------------------------------------------------------------------
 def init_db() -> None:
     SQLModel.metadata.create_all(engine)
 
     with Session(engine) as session:
-        already_loaded = session.exec(
-            select(Participants).limit(1)
-        ).first()
+        # Initialize safe idempotency layer
+        setup_ingestion_state(session)
+        
+        # Check if core attributes exist
+        already_loaded = session.exec(select(Participants).limit(1)).first()
 
         if not already_loaded:
-            logger.info("Loading core datasets")
-
+            logger.info("Loading core attribute datasets")
             for file_path, model in INGESTION_PLAN:
-                bulk_insert_with_polars(
-                    session,
-                    file_path,
-                    model
-                )
+                bulk_insert_with_polars(session, file_path, model)
+        else:
+            logger.info("Core datasets detected. Skipping attributes ingestion.")
 
-        logger.info(
-            "Starting activity logs insertion protocol"
-        )
-
-        ingest_activity_logs(
-            session,
-            resume_from_file=0
-        )
+        logger.info("Starting activity logs ingestion protocol")
+        ingest_activity_logs(session, resume_from_file=0)
 
 
 if __name__ == "__main__":
