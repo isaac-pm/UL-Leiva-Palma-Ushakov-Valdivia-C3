@@ -1,8 +1,24 @@
 # ============================================================
-# Author: geralm - Leiva Palma, Ushakov, Valdivia
+# Author: geralm, Palma, Ushakov, Valdivia
 # Project: HPDAV - High-Performance Data Analysis and Visualization
 # ============================================================
 services:
+  ailscale:
+    image: tailscale/tailscale:latest
+    container_name: tailscale
+    hostname: raspberry-proyect
+    
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    volumes:
+      - ./tailscale-data:/var/lib/tailscale
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      - TS_AUTHKEY=${TAILSCALE_AUTH_KEY}
+      - TS_STATE_DIR=/var/lib/tailscale
+    restart: unless-stopped
   db:     
     image: postgres:15-alpine
     container_name: hpdav-db
