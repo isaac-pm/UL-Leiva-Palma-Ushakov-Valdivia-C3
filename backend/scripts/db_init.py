@@ -8,7 +8,10 @@ and uses explicit, armored PostgreSQL C-level type casting.
 import os
 import re
 import csv
+import uuid
 import logging
+from typing import Type
+
 import sqlalchemy as sa
 from sqlalchemy import text
 from sqlmodel import Session, SQLModel
@@ -145,7 +148,6 @@ def brutal_ingest(session: Session, file_path: str, model: Type[SQLModel], filen
     conn = session.connection().connection
     csv_cols = get_csv_headers(file_path)
     
-    import uuid
     staging_table = f"temp_stage_{uuid.uuid4().hex[:8]}"
     
     try:
