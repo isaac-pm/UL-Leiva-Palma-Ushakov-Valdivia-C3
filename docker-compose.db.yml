@@ -1,0 +1,52 @@
+# ============================================================
+# Infrastructure & Persistence (Raspberry Pi)
+# ============================================================
+services:
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: tailscale
+    hostname: raspberry-proyect
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    volumes:
+      - ./tailscale-data:/var/lib/tailscale
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      - TS_AUTHKEY=${TAILSCALE_AUTH_KEY}
+      - TS_STATE_DIR=/var/lib/tailscale
+    restart: unless-stopped
+
+  db:
+    image: postgres:15-alpine
+    container_name: hpdav-db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+      TZ: ${TIMEZONE:-UTC}
+    ports:
+      - "5432:5432"   # accesible vía VPN
+    volumes:
+      - /mnt/hpdav_data/pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  db-init:
+    image: python:3.12-slim
+    container_name: hpdav-db-init
+    working_dir: /app
+    command: sh -c "pip install --no-cache-dir -r requirements.txt && python3 -m scripts.db_init"
+    env_file:
+      - .env
+    volumes:
+      - ./backend:/app
+      - /mnt/hpdav_data/dataset:/data
+    depends_on:
+      db:
+        condition: service_healthy
