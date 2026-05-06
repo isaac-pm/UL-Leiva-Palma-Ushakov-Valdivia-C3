@@ -9,7 +9,7 @@ from sqlalchemy import insert, text
 from sqlmodel import Session, SQLModel, select
 
 from core.database import get_engine
-from core.models import (
+from core.models.base import (
     Buildings,
     Participants,
     Apartments,

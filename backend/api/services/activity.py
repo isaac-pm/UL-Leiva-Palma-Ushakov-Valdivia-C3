@@ -2,7 +2,7 @@ from sqlmodel import Session, select, func
 from datetime import datetime, timedelta
 
 from core.result import Result
-from core.models import ActivityLogs
+from core.models.base import ActivityLogs
 
 
 class ActivityService:

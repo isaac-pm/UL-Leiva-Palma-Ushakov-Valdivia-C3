@@ -1,7 +1,7 @@
 from sqlmodel import Session, select, func
 
 from core.result import Result
-from core.models import FinancialJournal
+from core.models.base import FinancialJournal
 
 
 class FinancialService:

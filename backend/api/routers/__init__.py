@@ -9,6 +9,7 @@ from api.routers.financial import router as financial_router
 from api.routers.social import router as social_router
 from api.routers.travel import router as travel_router
 from api.routers.activity import router as activity_router
+from api.routers.social_network_analytics import router as social_network_analytics_router 
 
 __all__ = [
     "participants_router",
@@ -22,4 +23,5 @@ __all__ = [
     "social_router",
     "travel_router",
     "activity_router",
+    "social_network_analytics_router"
 ]

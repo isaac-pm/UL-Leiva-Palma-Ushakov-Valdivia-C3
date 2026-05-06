@@ -20,3 +20,9 @@ psycopg-pool
 requests==2.32.5
 httpx
 polars
+
+# requirements.txt
+igraph>=0.10.0   # The C-core graph engine
+leidenalg>=0.10.0 # Required by igraph for Leiden community detection
+numpy>=1.24.0    # For fast array manipulation before feeding into igraph
+python-dateutil

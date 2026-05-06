@@ -1,7 +1,7 @@
 from sqlmodel import Session, select, func
 
 from core.result import Result
-from core.models import Pubs, Restaurants, Schools
+from core.models.base import Pubs, Restaurants, Schools
 
 
 class VenueService:
