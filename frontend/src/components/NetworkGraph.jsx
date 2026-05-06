@@ -1,168 +1,136 @@
-import { useEffect, useRef, useCallback, useMemo } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
+import NetworkD3 from '../utils/d3/NetworkD3';
 import { setSelectedNodeId, setHoveredClusterId } from '../store/graphSlice';
 import { setHighlightedGroup } from '../store/sankeySlice';
-import { getClusterColor, runForceSimulation } from '../utils/d3/useForceSimulation';
 
 const NetworkGraph = ({ width = 500, height = 400 }) => {
-  const canvasRef = useRef(null);
   const dispatch = useDispatch();
+  const containerRef = useRef(null);
+  const networkD3Ref = useRef(null);
+  const hasInitialized = useRef(false);
 
-  const { nodes, links, loading, selectedNodeId } = useSelector((state) => state.graph);
-  const { highlightedGroup } = useSelector((state) => state.sankey);
+  const { nodes, links, loading, selectedNodeId, hoveredClusterId } = useSelector((state) => state.graph);
 
-  const renderedNodes = useMemo(() => {
-    if (!nodes.length || !links.length) return [];
-    const result = runForceSimulation(nodes, links, width, height);
-    return result.nodes;
-  }, [nodes, links, width, height]);
-
-  const canvasDraw = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !renderedNodes.length) return;
-
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, width, height);
-
-    const isHighlightedGroup = highlightedGroup !== null;
-    const [sourceCategory] = highlightedGroup?.split('_') || [];
-
-    renderedNodes.forEach((node) => {
-      const nodeX = node.x ?? width / 2;
-      const nodeY = node.y ?? height / 2;
-      const radius = 8;
-
-      let isDimmed = false;
-      if (isHighlightedGroup && node.category) {
-        isDimmed = !node.category.includes(sourceCategory);
-      }
-
-      ctx.beginPath();
-      ctx.arc(nodeX, nodeY, isDimmed ? radius * 0.5 : radius, 0, 2 * Math.PI);
-      ctx.fillStyle = getClusterColor(node.clusterId) + (isDimmed ? '40' : 'cc');
-      ctx.fill();
-
-      ctx.strokeStyle = node.id === selectedNodeId ? '#fff' : 'transparent';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    });
-
-    links.forEach((link) => {
-      const sourceId = link.source?.id || `cluster_${link.source}`;
-      const targetId = link.target?.id || `cluster_${link.target}`;
-      const source = renderedNodes.find((n) => n.id === sourceId);
-      const target = renderedNodes.find((n) => n.id === targetId);
-
-      if (!source || !target) return;
-
-      const sourceX = source.x ?? width / 2;
-      const sourceY = source.y ?? height / 2;
-      const targetX = target.x ?? width / 2;
-      const targetY = target.y ?? height / 2;
-
-      let isDimmed = false;
-      if (isHighlightedGroup && source.category) {
-        isDimmed = !source.category.includes(sourceCategory);
-      }
-
-      ctx.beginPath();
-      ctx.moveTo(sourceX, sourceY);
-      ctx.lineTo(targetX, targetY);
-      ctx.strokeStyle = isDimmed ? 'rgba(148, 163, 184, 0.1)' : 'rgba(148, 163, 184, 0.3)';
-      ctx.lineWidth = isDimmed ? 0.5 : 1;
-      ctx.stroke();
-    });
-  }, [renderedNodes, links, width, height, selectedNodeId, highlightedGroup]);
+  const getChartSize = useCallback(() => {
+    if (containerRef.current) {
+      return {
+        width: containerRef.current.offsetWidth || width,
+        height: containerRef.current.offsetHeight || height,
+      };
+    }
+    return { width, height };
+  }, [width, height]);
 
   useEffect(() => {
-    canvasDraw();
-  }, [canvasDraw]);
+    if (!containerRef.current || hasInitialized.current) return;
 
-  const handleCanvasClick = useCallback((event) => {
-    const canvas = canvasRef.current;
-    if (!canvas || !renderedNodes.length) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const clickX = event.clientX - rect.left;
-    const clickY = event.clientY - rect.top;
-
-    const clickedNode = renderedNodes.find((node) => {
-      const nodeX = node.x ?? width / 2;
-      const nodeY = node.y ?? height / 2;
-      const distance = Math.sqrt((clickX - nodeX) ** 2 + (clickY - nodeY) ** 2);
-      return distance < 12;
+    const networkD3 = new NetworkD3(containerRef.current, {
+      onSelect: (items) => {
+        if (items && items[0]) {
+          dispatch(setSelectedNodeId(items[0].id));
+          if (items[0].category) {
+            dispatch(setHighlightedGroup(items[0].category));
+          }
+        }
+      },
+      onHover: (items) => {
+        if (items && items[0]) {
+          dispatch(setHoveredClusterId(items[0].clusterId));
+        } else {
+          dispatch(setHoveredClusterId(null));
+        }
+      },
     });
 
-    if (clickedNode) {
-      dispatch(setSelectedNodeId(selectedNodeId === clickedNode.id ? null : clickedNode.id));
-      
-      const groupId = clickedNode.category ? `${clickedNode.category}_Flow` : null;
-      if (groupId) {
-        dispatch(setHighlightedGroup(groupId));
-      }
+    networkD3.create({ size: getChartSize() });
+    networkD3Ref.current = networkD3;
+    hasInitialized.current = true;
+
+    return () => {
+      networkD3Ref.current?.destroy();
+      hasInitialized.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const networkD3 = networkD3Ref.current;
+    console.log('[NetworkGraph] useEffect - nodes:', nodes.length, 'links:', links.length);
+    if (networkD3 && nodes.length) {
+      networkD3.update({ nodes, links });
     } else {
-      dispatch(setSelectedNodeId(null));
-      dispatch(setHighlightedGroup(null));
+      console.log('[NetworkGraph] Skipping update - no nodes or no d3 instance');
     }
-  }, [dispatch, renderedNodes, width, height, selectedNodeId]);
+  }, [nodes, links]);
 
-  const handleCanvasMouseMove = useCallback((event) => {
-    const canvas = canvasRef.current;
-    if (!canvas || !renderedNodes.length) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = event.clientX - rect.left;
-    const mouseY = event.clientY - rect.top;
-
-    const hoveredNode = renderedNodes.find((node) => {
-      const nodeX = node.x ?? width / 2;
-      const nodeY = node.y ?? height / 2;
-      const distance = Math.sqrt((mouseX - nodeX) ** 2 + (mouseY - nodeY) ** 2);
-      return distance < 12;
-    });
-
-    if (hoveredNode) {
-      dispatch(setHoveredClusterId(hoveredNode.clusterId));
-      canvas.style.cursor = 'pointer';
-    } else {
-      dispatch(setHoveredClusterId(null));
-      canvas.style.cursor = 'default';
+  useEffect(() => {
+    const networkD3 = networkD3Ref.current;
+    if (networkD3) {
+      networkD3.updateSelection(selectedNodeId);
     }
-  }, [dispatch, renderedNodes, width, height]);
+  }, [selectedNodeId]);
+
+  useEffect(() => {
+    const networkD3 = networkD3Ref.current;
+    if (networkD3) {
+      networkD3.updateHover(hoveredClusterId);
+    }
+  }, [hoveredClusterId]);
+
+  const clusterLabels = {
+    0: 'Urban',
+    3: 'Suburban A',
+    4: 'Suburban B',
+    5: 'Rural',
+    6: 'Peri-urban',
+    7: 'Mixed',
+    9: 'Industrial',
+  };
 
   return (
     <div className="relative bg-card rounded-lg p-4 shadow-md">
       <h3 className="text-lg font-semibold text-foreground mb-4">Social Network Graph</h3>
-      
+
       {loading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-background/50">
+        <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-10">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
         </div>
       )}
 
-      <canvas
-        ref={canvasRef}
-        width={width}
-        height={height}
-        className="border border-border rounded cursor-pointer"
-        onClick={handleCanvasClick}
-        onMouseMove={handleCanvasMouseMove}
+      <div
+        ref={containerRef}
+        className="network-container"
+        style={{
+          width: '100%',
+          height: height,
+          minHeight: '300px',
+        }}
       />
 
       <div className="mt-4 flex flex-wrap gap-2 text-xs">
-        {['HighIncome', 'MediumIncome', 'LowIncome', 'Stable', 'Unstable'].map((cluster) => (
+        {Object.entries(clusterLabels).map(([id, label]) => (
           <span
-            key={cluster}
+            key={id}
             className="px-2 py-1 rounded-full flex items-center gap-1"
-            style={{ backgroundColor: getClusterColor(cluster) + '20', color: getClusterColor(cluster) }}
+            style={{
+              backgroundColor: `hsl(${(parseInt(id) * 45) % 360}, 70%, 90%)`,
+              color: `hsl(${(parseInt(id) * 45) % 360}, 70%, 30%)`,
+            }}
           >
             <span
               className="w-2 h-2 rounded-full"
-              style={{ backgroundColor: getClusterColor(cluster) }}
+              style={{
+                backgroundColor: `hsl(${(parseInt(id) * 45) % 360}, 70%, 40%)`,
+              }}
             />
-            {cluster}
+            {label}
           </span>
         ))}
+      </div>
+
+      <div className="mt-2 p-2 bg-accent/5 rounded text-xs text-muted-foreground">
+        <strong>Hover</strong> nodes to see details | <strong>Click</strong> to select |
+        <strong> Drag</strong> to reposition nodes
       </div>
     </div>
   );

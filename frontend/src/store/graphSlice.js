@@ -19,7 +19,10 @@ const initialState = {
 export const fetchNetworkData = createAsyncThunk(
   'graph/fetchNetworkData',
   async ({ year, month }) => {
-    return customfetch(`/api/visual-analytics/network?year=${year}&month=${month}`);
+    console.log('[GraphSlice] Fetching network data for', year, month);
+    const result = await customfetch(`/api/visual-analytics/network?year=${year}&month=${month}`);
+    console.log('[GraphSlice] API result:', result?.data?.data?.length, 'items');
+    return result;
   }
 );
 
@@ -53,9 +56,12 @@ const graphSlice = createSlice({
         state.loading = false;
         
         const payloadData = action.payload?.data?.data || [];
+        console.log('[GraphSlice] Processing', payloadData.length, 'items');
+        
         if (payloadData.length === 0) {
           state.nodes = [];
           state.links = [];
+          console.log('[GraphSlice] No data - empty state');
           return;
         }
         
@@ -67,6 +73,7 @@ const graphSlice = createSlice({
           const sourceId = item.sourceClusterId;
           const targetId = item.targetClusterId;
           
+          // Create node if doesn't exist
           if (!nodesArray[sourceId]) {
             nodesArray[sourceId] = {
               id: `cluster_${sourceId}`,
@@ -82,11 +89,14 @@ const graphSlice = createSlice({
             };
           }
           
-          linksArray.push({
-            source: sourceId,
-            target: targetId,
-            weight: item.interactionCount || 1,
-          });
+          // Only add links where source !== target (no self-loops)
+          if (sourceId !== targetId) {
+            linksArray.push({
+              source: sourceId,
+              target: targetId,
+              weight: item.interactionCount || 1,
+            });
+          }
         });
         
         state.nodes = nodesArray.filter(n => n !== null);
