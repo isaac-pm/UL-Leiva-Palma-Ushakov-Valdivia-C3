@@ -70,6 +70,14 @@ const LAYOUT_REGISTRY = {
                 simulation.tick();
             }
 
+            simulation.on('tick', () => {
+                nodeG.selectAll('.node-circle')
+                    .attr('cx', d => d.x)
+                    .attr('cy', d => d.y);
+                linkG.selectAll('.link-path')
+                    .attr('d', d => `M${d.source.x},${d.source.y}L${d.target.x},${d.target.y}`);
+            });
+
             // Debug: check final node positions and link distances
             console.log('[NetworkLayout] Final node positions:', simulationNodes.slice(0, 3).map(n => `${n.id}: (${Math.round(n.x)},${Math.round(n.y)})`));
             
@@ -168,8 +176,6 @@ const LAYOUT_REGISTRY = {
                     update => update
                         .transition()
                         .duration(300)
-                        .attr('cx', d => d.x)
-                        .attr('cy', d => d.y)
                         .attr('r', d => 6 + Math.min(12, (d.totalWeight || 0) / 800)),
                     exit => exit
                         .transition()
