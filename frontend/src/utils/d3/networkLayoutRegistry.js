@@ -10,6 +10,7 @@ const LAYOUT_REGISTRY = {
             const {
                 width,
                 height,
+                rootSvg,
                 onSelect,
                 onHover,
                 showTooltip,
@@ -36,12 +37,13 @@ const LAYOUT_REGISTRY = {
                 nodeWeights[targetId] = (nodeWeights[targetId] || 0) + (link.weight || 1);
             });
 
+            // Fix: Start nodes SPREAD ACROSS the full canvas (not clustered at center)
             const simulationNodes = nodes.map((node, i) => ({
                 ...node,
                 index: i,
                 totalWeight: nodeWeights[node.id] || 0,
-                x: width / 2 + (Math.random() - 0.5) * 50,
-                y: height / 2 + (Math.random() - 0.5) * 50,
+                x: Math.random() * width * 0.8 + width * 0.1,  // Spread across 80% of canvas
+                y: Math.random() * height * 0.8 + height * 0.1,
             }));
 
             const simulationLinks = links.map((link, i) => ({
@@ -51,28 +53,45 @@ const LAYOUT_REGISTRY = {
                 target: `cluster_${link.target}`,
             }));
 
+            console.log('[NetworkLayout] Link force setup:', simulationLinks.slice(0, 3).map(l => `${l.source}->${l.target}`));
+
             const simulation = d3.forceSimulation(simulationNodes)
                 .force('link', d3.forceLink(simulationLinks)
                     .id(d => d.id)
-                    .distance(100)
-                    .strength(0.5)
+                    .distance(60)
+                    .strength(0.6)
                 )
-                .force('charge', d3.forceManyBody().strength(-300))
-                .force('center', d3.forceCenter(width / 2, height / 2))
-                .force('collision', d3.forceCollide().radius(d => 8 + Math.min(10, (nodeWeights[d.id] || 0) / 500)))
-                .force('x', d3.forceX(width / 2).strength(0.03))
-                .force('y', d3.forceY(height / 2).strength(0.03));
+                .force('charge', d3.forceManyBody().strength(-700))
+                .force('center', d3.forceCenter(width / 2, height / 2).strength(0.05))
+                .force('collision', d3.forceCollide().radius(d => 8 + Math.min(10, (d.totalWeight || 0) / 500)));
 
             simulation.stop();
-            for (let i = 0; i < 500; i++) {
+            for (let i = 0; i < 300; i++) {
                 simulation.tick();
             }
 
+            // Debug: check final node positions and link distances
+            console.log('[NetworkLayout] Final node positions:', simulationNodes.slice(0, 3).map(n => `${n.id}: (${Math.round(n.x)},${Math.round(n.y)})`));
+            
+            // Calculate and log distances for linked nodes
+            simulationLinks.forEach(link => {
+                if (link.source.x !== undefined && link.target.x !== undefined) {
+                    const dx = link.target.x - link.source.x;
+                    const dy = link.target.y - link.source.y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    console.log(`[NetworkLayout] Link ${link.source.id}->${link.target.id} distance: ${Math.round(dist)}`);
+                }
+            });
+
             // IMPORTANT: After simulation, d.source and d.target are now NODE OBJECTS (not strings)
             // Use them directly instead of searching
+            
+            // Clear existing elements to ensure proper z-order
+            svg.selectAll('.linkG').remove();
+            svg.selectAll('.nodeG').remove();
 
             // Render links FIRST (background) - so they appear behind nodes
-            const linkG = svg.selectAll('.linkG').data([1]).join('g').attr('class', 'linkG');
+            const linkG = svg.append('g').attr('class', 'linkG');
 
             linkG.selectAll('.link-path')
                 .data(simulationLinks, d => `${d.source.id || d.source}-${d.target.id || d.target}`)
@@ -114,44 +133,51 @@ const LAYOUT_REGISTRY = {
                 });
 
             // Render nodes SECOND (foreground) - so they appear on top of links
-            const nodeG = svg.selectAll('.nodeG').data([1]).join('g').attr('class', 'nodeG');
+            const nodeG = svg.append('g').attr('class', 'nodeG');
 
             const nodesSelection = nodeG.selectAll('.node-circle')
                 .data(simulationNodes, d => d.id)
                 .join(
                     enter => enter.append('circle')
                         .attr('class', 'node-circle')
-                        .attr('r', d => 6 + Math.min(12, (d.totalWeight || 0) / 800))
+                        .attr('r', 0)  // Start at 0 for animation
                         .attr('fill', d => getClusterColor(d.clusterId))
                         .attr('stroke', '#fff')
                         .attr('stroke-width', 1.5)
+                        .attr('cx', d => d.x)
+                        .attr('cy', d => d.y)
                         .style('cursor', 'pointer')
-                        .style('opacity', defaultOpacity)
+                        .style('opacity', 0)
+                        // Attach events BEFORE transition
                         .on('click', (event, d) => {
-                            if (onSelect) {
-                                onSelect([d]);
-                            }
+                            if (onSelect) onSelect([d]);
                         })
                         .on('mouseenter', (event, d) => {
-                            if (showTooltip) {
-                                showTooltip(event, d);
-                            }
-                            if (onHover) {
-                                onHover([d]);
-                            }
+                            if (showTooltip) showTooltip(event, d);
+                            if (onHover) onHover([d]);
                         })
                         .on('mouseleave', () => {
                             hideTooltip();
                             if (onHover) onHover(null);
-                        }),
+                        })
+                        // Then apply transition
+                        .transition()
+                        .duration(400)
+                        .attr('r', d => 6 + Math.min(12, (d.totalWeight || 0) / 800))
+                        .style('opacity', defaultOpacity),
                     update => update
                         .transition()
                         .duration(300)
+                        .attr('cx', d => d.x)
+                        .attr('cy', d => d.y)
                         .attr('r', d => 6 + Math.min(12, (d.totalWeight || 0) / 800)),
-                    exit => exit.remove()
-                )
-                .attr('cx', d => d.x)
-                .attr('cy', d => d.y);
+                    exit => exit
+                        .transition()
+                        .duration(200)
+                        .attr('r', 0)
+                        .style('opacity', 0)
+                        .remove()
+                );
 
             nodesSelection.call(d3.drag()
                 .on('start', dragstarted)

@@ -203,6 +203,7 @@ class NetworkD3 {
         layout.render(this.g, nodes, links, {
             width: this.width,
             height: this.height,
+            rootSvg: this.svg,
             onSelect: this.onSelect,
             onHover: (items) => {
                 const currentId = items ? items[0]?.id : null;
