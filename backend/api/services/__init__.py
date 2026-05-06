@@ -9,6 +9,7 @@ from api.services.financial import FinancialService
 from api.services.social import SocialService
 from api.services.travel import TravelService
 from api.services.activity import ActivityService
+from api.services.social_network_analytics import VisualAnalyticsService
 
 __all__ = [
     "ParticipantService",
@@ -22,4 +23,5 @@ __all__ = [
     "SocialService",
     "TravelService",
     "ActivityService",
+    "VisualAnalyticsService"
 ]

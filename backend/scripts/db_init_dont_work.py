@@ -23,7 +23,7 @@ DATA_ROOT = os.getenv("DATA_PATH", "../data")
 BATCH_SIZE = 50_000 
 ACTIVITY_LOGS_PATH = os.path.join(DATA_ROOT, "Activity Logs")
 
-from core.models import (
+from core.models.base import (
     Buildings, Participants, Apartments, Employers, Pubs, 
     Restaurants, Schools, Jobs, CheckinJournal, FinancialJournal, 
     SocialNetwork, TravelJournal, ActivityLogs

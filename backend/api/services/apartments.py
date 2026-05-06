@@ -1,7 +1,7 @@
 from sqlmodel import Session, select, func
 
 from core.result import Result
-from core.models import Apartments
+from core.models.base import Apartments
 
 
 class ApartmentService:

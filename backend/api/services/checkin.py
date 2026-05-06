@@ -1,7 +1,7 @@
 from sqlmodel import Session, select, func
 
 from core.result import Result
-from core.models import CheckinJournal
+from core.models.base import CheckinJournal
 
 
 class CheckinService:

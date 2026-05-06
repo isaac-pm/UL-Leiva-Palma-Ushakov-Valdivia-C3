@@ -5,7 +5,8 @@ from sqlmodel import SQLModel
 from fastapi.middleware.cors import CORSMiddleware
 from art import *
 
-import core.models
+import core.models.base
+import core.models.analytics
 from core.database import get_engine
 from api.routers import (
     participants_router,
@@ -19,9 +20,10 @@ from api.routers import (
     social_router,
     travel_router,
     activity_router,
+    social_network_analytics_router
 )
 
-tprint("Pura vida harni tsytsky",font="art")
+tprint("Pura vida harni tsytsky!",font="art")
 print("Access API docs thorught this endpoint: http://localhost:8000/docs")
 
 @asynccontextmanager
@@ -57,6 +59,8 @@ app.include_router(financial_router, prefix="/api")
 app.include_router(social_router, prefix="/api")
 app.include_router(travel_router, prefix="/api")
 app.include_router(activity_router, prefix="/api")
+
+app.include_router(social_network_analytics_router, prefix="/api")
 
 
 @app.get("/api/message")

@@ -1,7 +1,7 @@
 from sqlmodel import Session, select, func
 
 from core.result import Result
-from core.models import Jobs
+from core.models.base import Jobs
 
 
 class JobService:

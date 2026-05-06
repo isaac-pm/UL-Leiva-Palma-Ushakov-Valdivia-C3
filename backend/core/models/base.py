@@ -3,7 +3,7 @@ Author geralm
 
 Do not touch this file, the based models is the information mapped from the .csv -> SQL table.
 Modifiying this will take us 16:30 hours inserting millions of data 
-if you want (and 'll have) to add custom tables consider  ->>>>  visualization_models.py
+if you want (and 'll have) to add custom tables consider  ->>>>  core.models.analytics.py
 """
 
 import uuid

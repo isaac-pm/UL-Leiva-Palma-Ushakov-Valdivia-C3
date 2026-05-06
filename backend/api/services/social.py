@@ -1,7 +1,7 @@
 from sqlmodel import Session, select, func
 
 from core.result import Result
-from core.models import SocialNetwork
+from core.models.base import SocialNetwork
 
 
 class SocialService:
