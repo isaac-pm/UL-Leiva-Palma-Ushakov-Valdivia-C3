@@ -1,3 +1,4 @@
+import logging
 from datetime import date
 from sqlmodel import Session, select
 from sqlalchemy import delete
@@ -6,33 +7,37 @@ from core.result import Result
 
 from core.models.analytics import AnalyticMacroEdges, AnalyticParticipantSnapshots,AnalyticSankeyFlows
 from domain.social_network_clustering import SocialNetworkAnalyticsEngine
+
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - [%(levelname)s] - %(message)s")
+logger = logging.getLogger("Social Network analytics service")
+
 class VisualAnalyticsService:
 
     @staticmethod
     def compute_monthly_snapshot(session: Session, year: int, month: int) -> Result:
-        """
-        Calcula las métricas de red y flujos para un mes específico.
-        Idealmente llamado mediante BackgroundTasks.
-        """
         try:
+            logger.info(f"[SERVICE] INIT Computation {year}-{month}...")
+
             target_date = date(year, month, 1)
             
-            # 1. Idempotencia: Limpiar datos previos de ese mes para evitar duplicados
             VisualAnalyticsService.delete_monthly_snapshot(session, year, month)
 
-            # 2. Llamadas al motor de dominio (Stubs para las Tareas 1-3)
             engine = SocialNetworkAnalyticsEngine(session, target_date)
             engine.run_pipeline()
-                        
+            
+            logger.info(f"[SERVICE] Successfully {year}-{month}")
             return Result.ok({"status": "computed", "timeWindow": target_date.isoformat()})
+        
         except Exception as e:
             session.rollback()
-            return Result.fail(f"500_INTERNAL: Error computing snapshot: {str(e)}", status_code=500)
+            logger.error(f"\n[ERROR IN BACKGROUND TASK]: {str(e)}\n")
+            return Result.fail(f"500_INTERNAL: {str(e)}", status_code=500)
 
     @staticmethod
     def delete_monthly_snapshot(session: Session, year: int, month: int) -> Result:
         """
-        Limpia las tablas analíticas para un mes específico.
+        Clean
         """
         try:
             target_date = date(year, month, 1)

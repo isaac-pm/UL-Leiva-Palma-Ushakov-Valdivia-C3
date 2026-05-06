@@ -23,7 +23,7 @@ from api.routers import (
     social_network_analytics_router
 )
 
-tprint("Pura vida harni tsytsky!",font="art")
+tprint("Pura vida \n harni tsytsky!",font="art")
 print("Access API docs thorught this endpoint: http://localhost:8000/docs")
 
 @asynccontextmanager
@@ -36,7 +36,7 @@ async def lifespan(app: FastAPI):
     print("Shutting down hpdav api...")
 
 
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 
 # Allow the React frontend to communicate with this backend
 app.add_middleware(
