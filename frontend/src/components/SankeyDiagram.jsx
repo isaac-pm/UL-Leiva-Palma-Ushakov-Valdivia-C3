@@ -1,122 +1,111 @@
-import { useCallback } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import * as d3Interpolate from 'd3-interpolate';
-import { useSankeyLayout, nodeColorScale } from '../utils/d3/useSankeyLayout';
+import SankeyD3 from '../utils/d3/SankeyD3';
 import { setHighlightedGroup } from '../store/sankeySlice';
 
-const SankeyDiagram = ({ width = 500, height = 400 }) => {
+const SankeyDiagram = ({ width = 1000, height = 400 }) => {
   const dispatch = useDispatch();
+  const containerRef = useRef(null);
+  const sankeyD3Ref = useRef(null);
+  const hasInitialized = useRef(false);
 
-  const { nodes, links: sankeyLinks, loading, highlightedGroup } = useSelector((state) => state.sankey);
+  const { nodes, links, loading } = useSelector((state) => state.sankey);
   const { selectedNodeId } = useSelector((state) => state.graph);
 
-  const { layout } = useSankeyLayout(nodes, sankeyLinks, width, height);
+  const getChartSize = useCallback(() => {
+    if (containerRef.current) {
+      return {
+        width: containerRef.current.offsetWidth || width,
+        height: containerRef.current.offsetHeight || height,
+      };
+    }
+    return { width, height };
+  }, [width, height]);
 
-  const handleFlowHover = useCallback((sourceCategory, targetCategory) => {
-    const groupId = `${sourceCategory}_${targetCategory}`;
-    dispatch(setHighlightedGroup(groupId));
-  }, [dispatch]);
+  useEffect(() => {
+    if (!containerRef.current || hasInitialized.current) return;
 
-  const handleFlowLeave = useCallback(() => {
-    dispatch(setHighlightedGroup(null));
-  }, [dispatch]);
+    const sankeyD3 = new SankeyD3(containerRef.current, {
+      onSelect: (items) => {
+        if (items && items[0] && items[0].category) {
+          dispatch(setHighlightedGroup(items[0].category));
+        }
+      },
+      onHover: (items) => {
+        if (items && items[0] && items[0].category) {
+          dispatch(setHighlightedGroup(items[0].category));
+        } else if (!items) {
+          dispatch(setHighlightedGroup(null));
+        }
+      },
+    });
+
+    sankeyD3.create({ size: getChartSize() });
+    sankeyD3Ref.current = sankeyD3;
+    hasInitialized.current = true;
+
+    return () => {
+      sankeyD3Ref.current?.destroy();
+      hasInitialized.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const sankeyD3 = sankeyD3Ref.current;
+    if (sankeyD3 && nodes && links) {
+      sankeyD3.update({ nodes, links });
+    }
+  }, [nodes, links]);
+
+  useEffect(() => {
+    const sankeyD3 = sankeyD3Ref.current;
+    if (sankeyD3) {
+      sankeyD3.updateSelection(selectedNodeId);
+    }
+  }, [selectedNodeId]);
 
   return (
     <div className="relative bg-card rounded-lg p-4 shadow-md">
       <h3 className="text-lg font-semibold text-foreground mb-4">Sankey Flow Diagram</h3>
       
       {loading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-background/50">
+        <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-10">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
         </div>
       )}
 
-      <svg width={width} height={height} className="overflow-visible">
-        <defs>
-          <linearGradient id="flowGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="var(--accent)" />
-            <stop offset="100%" stopColor="var(--accent-bg)" />
-          </linearGradient>
-        </defs>
-
-        {layout.paths.map((link, index) => {
-          const sourceNode = layout.nodes[link.source];
-          const targetNode = layout.nodes[link.target];
-          
-          if (!sourceNode || !targetNode) return null;
-
-          const isHighlighted = highlightedGroup === `${sourceNode.category}_${targetNode.category}`;
-          const isDimmed = selectedNodeId && !isHighlighted;
-
-          const sourceColor = nodeColorScale(sourceNode.category);
-          const targetColor = nodeColorScale(targetNode.category);
-          const midColor = d3Interpolate.interpolateRgb(sourceColor, targetColor)(0.5);
-
-          return (
-            <path
-              key={`flow-${index}`}
-              d={link.path}
-              fill="none"
-              stroke={midColor}
-              strokeWidth={Math.max(link.width || 1, 1)}
-              opacity={isDimmed ? 0.2 : isHighlighted ? 1 : 0.7}
-              className="transition-all duration-300 cursor-pointer"
-              onMouseEnter={() => handleFlowHover(sourceNode.category, targetNode.category)}
-              onMouseLeave={handleFlowLeave}
-              style={{ pointerEvents: 'stroke' }}
-            />
-          );
-        })}
-
-        {layout.nodes.map((node, index) => {
-          if (!node) return null;
-          
-          const nodeColor = nodeColorScale(node.category);
-          const isSelected = selectedNodeId === node.id;
-
-          return (
-            <g
-              key={`node-${index}`}
-              transform={`translate(${node.x0}, ${node.y0})`}
-              className="transition-opacity duration-300"
-              opacity={selectedNodeId && selectedNodeId !== node.id && !isSelected ? 0.3 : 1}
-            >
-              <rect
-                width={node.x1 - node.x0}
-                height={node.y1 - node.y0}
-                fill={nodeColor}
-                rx={4}
-                className="cursor-pointer hover:opacity-80"
-              />
-              <text
-                x={node.x0 < width / 2 ? node.x1 - node.x0 + 8 : -8}
-                y={(node.y1 - node.y0) / 2}
-                textAnchor={node.x0 < width / 2 ? 'start' : 'end'}
-                dominantBaseline="middle"
-                className="text-xs fill-current"
-                style={{ fontSize: '12px' }}
-              >
-                {node.name}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
+      <div 
+        ref={containerRef} 
+        className="sankey-container"
+        style={{ 
+          width: '100%', 
+          height: height,
+          minHeight: '300px'
+        }}
+      />
 
       <div className="mt-4 flex flex-wrap gap-2 text-xs">
-        {['HighIncome', 'MediumIncome', 'LowIncome'].map((category) => (
-          <span
-            key={category}
-            className="px-2 py-1 rounded-full flex items-center gap-1"
-            style={{ backgroundColor: nodeColorScale(category) + '20', color: nodeColorScale(category) }}
-          >
-            <span
-              className="w-2 h-2 rounded-full"
-              style={{ backgroundColor: nodeColorScale(category) }}
-            />
-            {category}
-          </span>
-        ))}
+        <span className="px-2 py-1 rounded-full flex items-center gap-1 bg-emerald-500/20 text-emerald-500">
+          <span className="w-2 h-2 rounded-full bg-emerald-500" />
+          Low Income
+        </span>
+        <span className="px-2 py-1 rounded-full flex items-center gap-1 bg-blue-500/20 text-blue-500">
+          <span className="w-2 h-2 rounded-full bg-blue-500" />
+          Medium Income
+        </span>
+        <span className="px-2 py-1 rounded-full flex items-center gap-1 bg-amber-500/20 text-amber-500">
+          <span className="w-2 h-2 rounded-full bg-amber-500" />
+          High Income
+        </span>
+        <span className="px-2 py-1 rounded-full flex items-center gap-1 bg-red-500/20 text-red-500">
+          <span className="w-2 h-2 rounded-full bg-red-500" />
+          Very High Income
+        </span>
+      </div>
+
+      <div className="mt-2 p-2 bg-accent/5 rounded text-xs text-muted-foreground">
+        <strong>Hover</strong> on flows to see balance amounts | 
+        <strong> Click</strong> nodes to highlight
       </div>
     </div>
   );

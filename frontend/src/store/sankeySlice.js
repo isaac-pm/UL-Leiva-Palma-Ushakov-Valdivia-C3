@@ -54,63 +54,94 @@ const sankeySlice = createSlice({
         }
         
         const quartileLabels = { 1: 'LowIncome', 2: 'MediumIncome', 3: 'HighIncome', 4: 'VeryHighIncome' };
+        
+        // Layer 1: Source nodes (left) - sourceFinancialQuartile
+        const uniqueSources = [...new Set(payloadData.map(d => d.sourceFinancialQuartile))].sort((a, b) => a - b);
+        
+        // Layer 2: Middle nodes - travelPurpose
+        const uniqueMiddles = [...new Set(payloadData.map(d => d.travelPurpose))].sort();
+        
+        // Layer 3: Target nodes (right) - targetFinancialQuartile
+        const uniqueTargets = [...new Set(payloadData.map(d => d.targetFinancialQuartile))].sort((a, b) => a - b);
+        
+        // Create nodes array: [sources(0-n), middles(n+1...m), targets(m+1...)]
         const nodesArray = [];
         const sourceIndexMap = {};
+        const middleIndexMap = {};
         const targetIndexMap = {};
         
-        // First, create source nodes (income quartiles): indices 0-3
-        const uniqueSources = [...new Set(payloadData.map(d => d.sourceFinancialQuartile))].sort();
+        // Add source nodes (Layer 1 - left)
         uniqueSources.forEach((quartile, i) => {
-          const label = quartileLabels[quartile] || `Quartile_${quartile}`;
           nodesArray.push({
             id: `source_${quartile}`,
-            name: label,
-            category: label,
+            name: quartileLabels[quartile] || `Quartile_${quartile}`,
+            category: quartileLabels[quartile],
+            layer: 1,
           });
           sourceIndexMap[quartile] = i;
         });
         
-        // Then, create target nodes (travel purposes): indices 4+
-        const uniqueTargets = [...new Set(payloadData.map(d => d.travelPurpose))].sort();
-        uniqueTargets.forEach((purpose, i) => {
+        // Add middle nodes (Layer 2 - center)
+        const sourceCount = uniqueSources.length;
+        uniqueMiddles.forEach((purpose, i) => {
           nodesArray.push({
-            id: `target_${purpose}`,
+            id: `middle_${purpose}`,
             name: purpose,
             category: purpose,
+            layer: 2,
           });
-          targetIndexMap[purpose] = 4 + i;
+          middleIndexMap[purpose] = sourceCount + i;
         });
         
-        // Create flows with correct indices
-        const flowsArray = [];
-        const linksArray = [];
+        // Add target nodes (Layer 3 - right)
+        const middleCount = uniqueMiddles.length;
+        uniqueTargets.forEach((quartile, i) => {
+          nodesArray.push({
+            id: `target_${quartile}`,
+            name: quartileLabels[quartile] || `Quartile_${quartile}`,
+            category: quartileLabels[quartile],
+            layer: 3,
+          });
+          targetIndexMap[quartile] = sourceCount + middleCount + i;
+        });
+        
+        // Create links: Layer 1 → Layer 2
+        const layer1Links = [];
+        const layer2Links = [];
         
         payloadData.forEach(item => {
           const sourceIdx = sourceIndexMap[item.sourceFinancialQuartile];
-          const targetIdx = targetIndexMap[item.travelPurpose];
+          const middleIdx = middleIndexMap[item.travelPurpose];
+          const targetIdx = targetIndexMap[item.targetFinancialQuartile];
           
-          if (sourceIdx === undefined || targetIdx === undefined) return;
+          if (sourceIdx === undefined || middleIdx === undefined || targetIdx === undefined) return;
           
-          flowsArray.push({
-            sourceIndex: sourceIdx,
-            targetIndex: targetIdx,
+          // Flow from source → middle (Layer 1 → Layer 2)
+          layer1Links.push({
+            source: sourceIdx,  // index
+            target: middleIdx, // index
+            sourceLayer: 1,    // PRESERVE ORIGINAL LAYER INFO
+            targetLayer: 2,
             value: item.totalStartingBalance || 0,
             width: item.participantCount || 1,
-            sourceCategory: quartileLabels[item.sourceFinancialQuartile],
-            targetCategory: item.travelPurpose,
+            originalData: item,
           });
           
-          linksArray.push({
-            sourceIndex: sourceIdx,
-            targetIndex: targetIdx,
-            value: item.totalStartingBalance || 0,
+          // Flow from middle → target (Layer 2 → Layer 3)
+          layer2Links.push({
+            source: middleIdx,   // index
+            target: targetIdx,  // index
+            sourceLayer: 2,    // PRESERVE ORIGINAL LAYER INFO
+            targetLayer: 3,
+            value: item.totalEndingBalance || 0,
             width: item.participantCount || 1,
+            originalData: item,
           });
         });
         
         state.nodes = nodesArray;
-        state.links = linksArray;
-        state.flows = flowsArray;
+        state.links = [...layer1Links, ...layer2Links];
+        state.flows = payloadData;
         
         const cacheKey = `${action.meta.arg.year}-${action.meta.arg.month}`;
         
