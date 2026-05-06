@@ -50,24 +50,27 @@ class NetworkD3 {
             .attr('style', 'max-width: 100%; height: auto;')
             .attr('class', 'network-svg');
 
-        // Add zoom/pan behavior
+        // Add zoom/pan behavior - filter to only respond to background clicks
         this.zoom = d3.zoom()
             .scaleExtent([0.5, 8])
+            .filter((event) => {
+                // Only zoom on SVG background, not on nodes/links
+                const target = event.target;
+                return target.tagName === 'svg' || d3.select(target).classed('network-svg');
+            })
             .on('zoom', (event) => {
                 this.g.attr('transform', event.transform);
             });
         
         this.svg.call(this.zoom);
 
+        // Create graph group first (will be zoomed)
         this.g = this.svg.append('g')
             .attr('class', 'networkG')
             .attr('transform', `translate(${this.margin.left},${this.margin.top})`);
 
-        this.createTooltip();
-    }
-
-    createTooltip() {
-        this.tooltip = this.g.append('g')
+        // Create tooltip at SVG root level (NOT inside this.g - so it won't scale)
+        this.tooltip = this.svg.append('g')
             .attr('class', 'tooltip')
             .style('display', 'none')
             .style('pointer-events', 'none');
@@ -85,10 +88,14 @@ class NetworkD3 {
     }
 
     showTooltip(event, d) {
+        if (!d) return;
+        
         const node = d.data || d;
-        const clusterId = node.clusterId ?? node.id?.replace('cluster_', '') ?? 'Unknown';
+        if (!node) return;
+        
+        const clusterId = node.clusterId ?? String(node.id)?.replace('cluster_', '') ?? 'Unknown';
         const category = node.category || 'Cluster';
-        const interactionCount = node.interactionCount || this.getLinkWeight(node.id) || 'N/A';
+        const interactionCount = node.interactionCount || node.totalWeight || this.getLinkWeight(node.id) || 'N/A';
 
         const lines = [
             `Cluster: ${clusterId}`,
@@ -96,11 +103,24 @@ class NetworkD3 {
             `Interactions: ${typeof interactionCount === 'number' ? interactionCount.toLocaleString() : interactionCount}`,
         ];
 
-        let tx = (node.x || 0) + 10;
-        let ty = (node.y || 0) - 10;
+        // Use event pointer coordinates (in screen space, not zoomed space)
+        let tx, ty;
+        if (event && event.x !== undefined && event.y !== undefined) {
+            tx = event.x + 15;
+            ty = event.y - 15;
+        } else if (node.x !== undefined && node.y !== undefined) {
+            // Get screen coordinates from transformed node position
+            const transform = d3.zoomTransform(this.svg.node());
+            tx = transform.applyX(node.x) + 15;
+            ty = transform.applyY(node.y) - 15;
+        } else {
+            tx = 50;
+            ty = 50;
+        }
 
-        if (tx + 150 > this.width) tx = (node.x || 0) - 160;
-        if (ty + 60 > this.height) ty = (node.y || 0) - 50;
+        // Keep tooltip within bounds
+        if (tx + 150 > this.width) tx = tx - 165;
+        if (ty + 60 > this.height) ty = ty - 65;
 
         this.tooltip.select('.tooltip-text').selectAll('tspan').remove();
 
@@ -200,6 +220,13 @@ class NetworkD3 {
             selectedId: this.currentSelectedId,
             getClusterColor: (id) => CLUSTER_COLORS[id] || '#94a3b8',
         });
+
+        // Center view on new data - reset zoom transform
+        if (this.zoom && this.svg) {
+            this.svg.transition()
+                .duration(500)
+                .call(this.zoom.transform, d3.zoomIdentity);
+        }
     }
 
     updateSelection(selectedId) {

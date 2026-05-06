@@ -27,9 +27,19 @@ const LAYOUT_REGISTRY = {
 
             console.log('[NetworkLayout] Rendering', nodes.length, 'nodes', links.length, 'links');
 
+            // Pre-compute node weights for sizing
+            const nodeWeights = {};
+            links.forEach(link => {
+                const sourceId = `cluster_${link.source}`;
+                const targetId = `cluster_${link.target}`;
+                nodeWeights[sourceId] = (nodeWeights[sourceId] || 0) + (link.weight || 1);
+                nodeWeights[targetId] = (nodeWeights[targetId] || 0) + (link.weight || 1);
+            });
+
             const simulationNodes = nodes.map((node, i) => ({
                 ...node,
                 index: i,
+                totalWeight: nodeWeights[node.id] || 0,
                 x: width / 2 + (Math.random() - 0.5) * 50,
                 y: height / 2 + (Math.random() - 0.5) * 50,
             }));
@@ -44,34 +54,35 @@ const LAYOUT_REGISTRY = {
             const simulation = d3.forceSimulation(simulationNodes)
                 .force('link', d3.forceLink(simulationLinks)
                     .id(d => d.id)
-                    .distance(80)
-                    .strength(link => 1 / Math.min(
-                        simulationNodes.filter(n => n.id === link.source || n.id === link.source?.id).length,
-                        simulationNodes.filter(n => n.id === link.target || n.id === link.target?.id).length
-                    ) || 1)
+                    .distance(100)
+                    .strength(0.5)
                 )
-                .force('charge', d3.forceManyBody().strength(-200))
+                .force('charge', d3.forceManyBody().strength(-300))
                 .force('center', d3.forceCenter(width / 2, height / 2))
-                .force('collision', d3.forceCollide().radius(25))
-                .force('x', d3.forceX(width / 2).strength(0.05))
-                .force('y', d3.forceY(height / 2).strength(0.05));
+                .force('collision', d3.forceCollide().radius(d => 8 + Math.min(10, (nodeWeights[d.id] || 0) / 500)))
+                .force('x', d3.forceX(width / 2).strength(0.03))
+                .force('y', d3.forceY(height / 2).strength(0.03));
 
             simulation.stop();
-            for (let i = 0; i < 300; i++) {
+            for (let i = 0; i < 500; i++) {
                 simulation.tick();
             }
 
+            // IMPORTANT: After simulation, d.source and d.target are now NODE OBJECTS (not strings)
+            // Use them directly instead of searching
+
+            // Render links FIRST (background) - so they appear behind nodes
             const linkG = svg.selectAll('.linkG').data([1]).join('g').attr('class', 'linkG');
 
             linkG.selectAll('.link-path')
-                .data(simulationLinks, d => `${d.source}-${d.target}`)
+                .data(simulationLinks, d => `${d.source.id || d.source}-${d.target.id || d.target}`)
                 .join(
                     enter => enter.append('path')
                         .attr('class', 'link-path')
                         .attr('fill', 'none')
                         .attr('stroke', '#94a3b8')
-                        .attr('stroke-opacity', 0.4)
-                        .attr('stroke-width', d => Math.sqrt(d.weight || 1))
+                        .attr('stroke-opacity', 0.5)
+                        .attr('stroke-width', d => Math.max(1, Math.min(4, Math.sqrt(d.weight || 1) / 20)))
                         .style('cursor', 'pointer')
                         .on('click', (event, d) => {
                             if (onSelect) {
@@ -83,13 +94,7 @@ const LAYOUT_REGISTRY = {
                                 showTooltip(event, d);
                             }
                             if (onHover) {
-                                const sourceNode = simulationNodes.find(n =>
-                                    n.id === d.source || n.id === d.source?.id
-                                );
-                                const targetNode = simulationNodes.find(n =>
-                                    n.id === d.target || n.id === d.target?.id
-                                );
-                                onHover([sourceNode, targetNode]);
+                                onHover([d.source, d.target]);
                             }
                         })
                         .on('mouseleave', () => {
@@ -97,20 +102,18 @@ const LAYOUT_REGISTRY = {
                             if (onHover) onHover(null);
                         }),
                     update => update
-                        .attr('stroke-width', d => Math.sqrt(d.weight || 1)),
+                        .attr('stroke-width', d => Math.max(1, Math.min(4, Math.sqrt(d.weight || 1) / 20))),
                     exit => exit.remove()
                 )
                 .attr('d', d => {
-                    const sourceNode = simulationNodes.find(n =>
-                        n.id === d.source || n.id === d.source?.id
-                    );
-                    const targetNode = simulationNodes.find(n =>
-                        n.id === d.target || n.id === d.target?.id
-                    );
-                    if (!sourceNode || !targetNode) return '';
-                    return `M${sourceNode.x},${sourceNode.y}L${targetNode.x},${targetNode.y}`;
+                    // Use d.source and d.target directly - they are now node objects after simulation
+                    const source = d.source;
+                    const target = d.target;
+                    if (!source || !target || source.x === undefined || target.x === undefined) return '';
+                    return `M${source.x},${source.y}L${target.x},${target.y}`;
                 });
 
+            // Render nodes SECOND (foreground) - so they appear on top of links
             const nodeG = svg.selectAll('.nodeG').data([1]).join('g').attr('class', 'nodeG');
 
             const nodesSelection = nodeG.selectAll('.node-circle')
@@ -118,10 +121,10 @@ const LAYOUT_REGISTRY = {
                 .join(
                     enter => enter.append('circle')
                         .attr('class', 'node-circle')
-                        .attr('r', 8)
+                        .attr('r', d => 6 + Math.min(12, (d.totalWeight || 0) / 800))
                         .attr('fill', d => getClusterColor(d.clusterId))
                         .attr('stroke', '#fff')
-                        .attr('stroke-width', 1)
+                        .attr('stroke-width', 1.5)
                         .style('cursor', 'pointer')
                         .style('opacity', defaultOpacity)
                         .on('click', (event, d) => {
@@ -141,7 +144,10 @@ const LAYOUT_REGISTRY = {
                             hideTooltip();
                             if (onHover) onHover(null);
                         }),
-                    update => update,
+                    update => update
+                        .transition()
+                        .duration(300)
+                        .attr('r', d => 6 + Math.min(12, (d.totalWeight || 0) / 800)),
                     exit => exit.remove()
                 )
                 .attr('cx', d => d.x)
@@ -175,8 +181,13 @@ const LAYOUT_REGISTRY = {
 
             if (selectedId) {
                 svg.selectAll('.node-circle')
+                    .transition()
+                    .duration(200)
                     .attr('stroke', d => d.id === selectedId ? '#fff' : '#fff')
-                    .attr('stroke-width', d => d.id === selectedId ? 3 : 1)
+                    .attr('stroke-width', d => d.id === selectedId ? 3 : 1.5)
+                    .attr('r', d => d.id === selectedId 
+                        ? 6 + Math.min(12, (d.totalWeight || 0) / 800) + 4  // Make selected node bigger
+                        : 6 + Math.min(12, (d.totalWeight || 0) / 800))
                     .style('opacity', d => d.id === selectedId ? selectedOpacity : defaultOpacity);
             }
         }
