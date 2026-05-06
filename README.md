@@ -1,20 +1,5 @@
 
-# Run frontend
-```bash
-docker compose up frontend --build --no-deps -d
-```
-
-# Run everything
-```bash
-docker compose up
-```
-
-# Stop / Finish
-```bash
-docker compose down
-```
-
-# Run 
+# Run + useful commands
 ```bash
 docker compose -f docker-compose.app.yml up -d # Start
 
@@ -22,6 +7,8 @@ docker compose -f docker-compose.app.yml logs -f backend # Backend output
 docker compose -f docker-compose.app.yml logs -f frontend # Frontend output
 docker compose -f docker-compose.app.yml down # Stop
 
+# Restart one of the containers
+docker compose -f docker-compose.app.yml restart frontend 
 
 ```
 
