@@ -43,17 +43,20 @@ function App() {
 
   return (
     <Provider store={store}>
-      <div className="w-full">
-        <nav
-          className="border-b border-border/60 bg-background/40"
+      <div className="flex min-h-screen w-full">
+        <aside
+          className="sticky top-0 h-screen w-64 shrink-0 border-r border-border/60 bg-background/40"
           aria-label="Analysis sections"
         >
-          <div className="mx-auto flex w-full max-w-[90rem] flex-wrap gap-2 px-6 py-4">
+          <div className="flex h-full flex-col gap-2 px-4 py-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+              Analysis
+            </p>
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 type="button"
-                className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                className={`w-full rounded-xl px-4 py-3 text-left text-sm font-medium transition ${
                   activeTab === tab.id
                     ? 'bg-accent text-white shadow-md'
                     : 'bg-card text-muted-foreground hover:text-foreground'
@@ -65,22 +68,24 @@ function App() {
               </button>
             ))}
           </div>
-        </nav>
+        </aside>
 
-        <div className="mx-auto w-full max-w-[90rem] px-6">
-          <section hidden={activeTab !== 'business-prosperity'}>
-            <PlaceholderPanel title="Business Prosperity Analysis" />
-          </section>
-          <section hidden={activeTab !== 'resident-financial-health'}>
-            <PlaceholderPanel title="Resident Financial Health Over Time" />
-          </section>
-          <section hidden={activeTab !== 'employment-patterns'}>
-            <EmploymentPatternsMap />
-          </section>
-          <section hidden={activeTab !== 'mobility-social'}>
-            <MobilitySocialAnalytics />
-          </section>
-        </div>
+        <main className="flex-1">
+          <div className="w-full">
+            <section hidden={activeTab !== 'business-prosperity'}>
+              <PlaceholderPanel title="Business Prosperity Analysis" />
+            </section>
+            <section hidden={activeTab !== 'resident-financial-health'}>
+              <PlaceholderPanel title="Resident Financial Health Over Time" />
+            </section>
+            <section hidden={activeTab !== 'employment-patterns'}>
+              <EmploymentPatternsMap />
+            </section>
+            <section hidden={activeTab !== 'mobility-social'}>
+              <MobilitySocialAnalytics />
+            </section>
+          </div>
+        </main>
       </div>
     </Provider>
   );
