@@ -2,22 +2,52 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import BuildingsMapD3 from './utils/maps/buildingsMap';
 import { customfetch } from './utils/api';
 import AnalysisHeader from './components/AnalysisHeader';
+import LayerControlPanel from './components/maps/LayerControlPanel';
+import EmployerDetailPanel from './components/panels/EmployerDetailPanel';
+import { useEmployerMapData } from './hooks/useEmployerMapData';
+import { DEFAULT_LAYER_STATE } from './types/employerMap';
 
 const formatNumber = (value) => {
-  if (!Number.isFinite(value)) return '—';
+  if (!Number.isFinite(value)) return '\u2014';
   return value.toLocaleString();
 };
 
 const EmploymentPatternsMap = () => {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
+
   const [buildings, setBuildings] = useState([]);
   const [selected, setSelected] = useState(null);
   const [hovered, setHovered] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const stats = useMemo(() => {
+  const [layerState, setLayerState] = useState(DEFAULT_LAYER_STATE);
+  const [selectedEmployer, setSelectedEmployer] = useState(null);
+  const [employerDetail, setEmployerDetail] = useState(null);
+  const [employerDetailLoading, setEmployerDetailLoading] = useState(false);
+  const [employerHover, setEmployerHover] = useState(null);
+  const [hexRadius, setHexRadius] = useState(20);
+  const [debouncedHexRadius, setDebouncedHexRadius] = useState(20);
+  const { employers, stats, loading: empLoading, error: empError } = useEmployerMapData();
+  const employerWageRef = useRef({});
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedHexRadius(hexRadius), 200);
+    return () => clearTimeout(timer);
+  }, [hexRadius]);
+
+  useEffect(() => {
+    const lookup = {};
+    employers.forEach(e => {
+      if (e.buildingId != null) {
+        lookup[e.buildingId] = e.avgHourlyRate;
+      }
+    });
+    employerWageRef.current = lookup;
+  }, [employers]);
+
+  const statsSummary = useMemo(() => {
     const counts = buildings.reduce(
       (acc, item) => {
         const type = item.type || 'Unknown';
@@ -71,16 +101,22 @@ const EmploymentPatternsMap = () => {
 
     mapRef.current = new BuildingsMapD3(containerRef.current, {
       rotation: '270',
-      onSelect: (item) => setSelected(item),
+      onSelect: (item) => {
+        setSelected(item);
+        setSelectedEmployer(null);
+        setEmployerDetail(null);
+      },
       onHover: (event, item) => {
         if (!event || !item || !containerRef.current) {
           setHovered(null);
           return;
         }
         const rect = containerRef.current.getBoundingClientRect();
+        const wage = employerWageRef.current[item.id];
         setHovered({
           id: item.id,
           type: item.type || 'Unknown',
+          wage: wage != null ? wage : null,
           x: event.clientX - rect.left,
           y: event.clientY - rect.top,
         });
@@ -101,23 +137,96 @@ const EmploymentPatternsMap = () => {
   }, [buildings]);
 
   useEffect(() => {
-    if (!selected) return;
-    const next = buildings.find((item) => item.id === selected.id) || null;
-    if (next !== selected) {
-      setSelected(next);
+    if (!mapRef.current || !mapRef.current.mapPoint) return;
+    mapRef.current.updateHexbin(employers, layerState, stats || {}, {
+      onHover: (event, bin) => {
+        if (!event || !bin || !containerRef.current) {
+          setEmployerHover(null);
+          return;
+        }
+        const rect = containerRef.current.getBoundingClientRect();
+        const totalJobs = bin.members.reduce((s, m) => s + m.jobCount, 0);
+        setEmployerHover({
+          employerCount: bin.members.length,
+          totalJobs,
+          x: event.clientX - rect.left,
+          y: event.clientY - rect.top,
+        });
+      },
+      onSelect: (event, bin) => {
+        const top = bin.members.reduce((best, m) =>
+          m.jobCount > (best?.jobCount || 0) ? m : best, null);
+        if (!top) return;
+        setSelected(null);
+        setSelectedEmployer(top);
+      },
+    }, debouncedHexRadius);
+  }, [employers, layerState, stats, debouncedHexRadius]);
+
+  useEffect(() => {
+    if (!mapRef.current) return;
+    mapRef.current.updatePolygonFill(employers, layerState, stats || {});
+  }, [employers, layerState, stats]);
+
+  useEffect(() => {
+    if (!selectedEmployer || selectedEmployer.jobCount === 0) {
+      setEmployerDetail(null);
+      return;
     }
-  }, [buildings, selected]);
+
+    let isMounted = true;
+
+    const fetchDetail = async () => {
+      try {
+        setEmployerDetailLoading(true);
+        const response = await customfetch(`/api/employers/${selectedEmployer.employerId}/detail`);
+        const data = response?.data?.data;
+        if (isMounted) setEmployerDetail(data);
+      } catch (err) {
+        if (isMounted) setEmployerDetail(null);
+      } finally {
+        if (isMounted) setEmployerDetailLoading(false);
+      }
+    };
+
+    fetchDetail();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedEmployer]);
 
   useEffect(() => {
     const handleResize = () => {
       if (!mapRef.current || !containerRef.current) return;
       mapRef.current.create({ size: getChartSize() });
       mapRef.current.update(buildings);
+      if (employers.length > 0 && stats) {
+        mapRef.current.updateHexbin(employers, layerState, stats, {}, debouncedHexRadius);
+        mapRef.current.updatePolygonFill(employers, layerState, stats);
+      }
     };
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [buildings, getChartSize]);
+  }, [buildings, employers, layerState, stats, getChartSize, debouncedHexRadius]);
+
+  const handleCloseEmployer = useCallback(() => {
+    setSelectedEmployer(null);
+    setEmployerDetail(null);
+  }, []);
+
+  const clampTooltip = (x, y, tooltipWidth = 200, tooltipHeight = 60) => {
+    if (!containerRef.current) return { x, y };
+    const rect = containerRef.current.getBoundingClientRect();
+    return {
+      x: Math.min(x + 12, rect.width - tooltipWidth - 8),
+      y: Math.min(y + 12, rect.height - tooltipHeight - 8),
+    };
+  };
+
+  const anyLayerActive = layerState.jobConcentration || layerState.wageGeography ||
+    layerState.educationClusters || layerState.employerStability;
 
   return (
     <div className="mx-auto w-full max-w-[90rem] px-6 py-6">
@@ -128,9 +237,9 @@ const EmploymentPatternsMap = () => {
         right={(
           <div className="flex flex-wrap justify-end gap-2 text-[11px]">
             <div className="rounded-full bg-card px-3 py-1 text-foreground">
-              Total: {formatNumber(stats.total)}
+              Total: {formatNumber(statsSummary.total)}
             </div>
-            {Object.entries(stats)
+            {Object.entries(statsSummary)
               .filter(([key]) => key !== 'total')
               .map(([key, value]) => (
                 <div key={key} className="rounded-full border border-border/60 px-3 py-1 text-muted-foreground">
@@ -143,67 +252,103 @@ const EmploymentPatternsMap = () => {
 
       <div className="mt-6 grid justify-center gap-4 lg:grid-cols-[minmax(0,740px)_280px]">
         <div className="relative aspect-square w-full overflow-hidden rounded-2xl border border-border/60 bg-card/80">
-          {loading && (
+          {(loading || empLoading) && (
             <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 text-sm text-muted-foreground">
-              Loading buildings...
+              Loading...
             </div>
           )}
-          {error && (
+          {(error || empError) && (
             <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 text-sm text-red-500">
-              {error}
+              {error || empError}
             </div>
           )}
           <div
             ref={containerRef}
             className="h-full w-full"
           />
-          {hovered && (
+
+          {hovered && !selectedEmployer && (
             <div
               className="pointer-events-none absolute rounded-md bg-black/80 px-3 py-2 text-xs text-white"
               style={{ left: hovered.x + 12, top: hovered.y + 12 }}
             >
               <div>Building {hovered.id}</div>
               <div className="text-[10px] text-white/70">{hovered.type}</div>
+              {hovered.wage != null && layerState.wageGeography && layerState.wageMode === 'specific' && (
+                <div className="text-[10px] text-yellow-300">${hovered.wage.toFixed(2)}/hr</div>
+              )}
+            </div>
+          )}
+
+          {employerHover && (
+            <div
+              className="pointer-events-none absolute rounded-md bg-black/80 px-3 py-2 text-xs text-white"
+              style={{
+                left: clampTooltip(employerHover.x, employerHover.y - 20).x,
+                top: clampTooltip(employerHover.x, employerHover.y - 20).y,
+              }}
+            >
+              <div>{employerHover.employerCount} employer{employerHover.employerCount !== 1 ? 's' : ''}</div>
+              <div className="text-[10px] text-white/70">{employerHover.totalJobs} total jobs</div>
             </div>
           )}
         </div>
 
-        <aside className="w-full rounded-2xl border border-border/60 bg-background/70 p-3 text-sm text-muted-foreground">
-          <h3 className="text-base font-semibold text-foreground">Details</h3>
-          <p className="mt-1 text-xs">
-            Click on a building to lock the highlight. Scroll to zoom, drag to pan.
-          </p>
+        <div className="flex flex-col gap-4">
+          <LayerControlPanel
+            layerState={layerState}
+            setLayerState={setLayerState}
+            stats={stats}
+            hexRadius={hexRadius}
+            setHexRadius={setHexRadius}
+          />
 
-          <div className="mt-4 rounded-lg bg-card/80 p-3">
-            <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Selection</p>
-            {selected ? (
-              <div className="mt-2 text-sm text-foreground">
-                <div>Building {selected.id}</div>
-                <div className="text-xs text-muted-foreground">{selected.type || 'Unknown'}</div>
-                <div className="mt-3 text-[11px] text-muted-foreground">
-                  Polygon rings: {selected.rings?.length || 0}
+          {selectedEmployer && selectedEmployer.jobCount > 0 ? (
+            <EmployerDetailPanel
+              employerId={selectedEmployer.employerId}
+              detail={employerDetail}
+              loading={employerDetailLoading}
+              onClose={handleCloseEmployer}
+            />
+          ) : (
+            <aside className="w-full rounded-2xl border border-border/60 bg-background/70 p-3 text-sm text-muted-foreground">
+              <h3 className="text-base font-semibold text-foreground">Details</h3>
+              <p className="mt-1 text-xs">
+                Click on a building to lock the highlight. Scroll to zoom, drag to pan.
+              </p>
+
+              <div className="mt-4 rounded-lg bg-card/80 p-3">
+                <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Selection</p>
+                {selected ? (
+                  <div className="mt-2 text-sm text-foreground">
+                    <div>Building {selected.id}</div>
+                    <div className="text-xs text-muted-foreground">{selected.type || 'Unknown'}</div>
+                    <div className="mt-3 text-[11px] text-muted-foreground">
+                      Polygon rings: {selected.rings?.length || 0}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="mt-2 text-xs">No building selected yet.</p>
+                )}
+              </div>
+
+              <div className="mt-4 rounded-lg border border-border/60 bg-accent/5 p-3 text-xs">
+                <p className="font-semibold text-foreground">Legend</p>
+                <div className="mt-2 flex flex-col gap-2">
+                  <span className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-orange-500" /> Commercial
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-blue-500" /> Residential
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500" /> School
+                  </span>
                 </div>
               </div>
-            ) : (
-              <p className="mt-2 text-xs">No building selected yet.</p>
-            )}
-          </div>
-
-          <div className="mt-4 rounded-lg border border-border/60 bg-accent/5 p-3 text-xs">
-            <p className="font-semibold text-foreground">Legend</p>
-            <div className="mt-2 flex flex-col gap-2">
-              <span className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-orange-500" /> Commercial
-              </span>
-              <span className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-blue-500" /> Residential
-              </span>
-              <span className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" /> School
-              </span>
-            </div>
-          </div>
-        </aside>
+            </aside>
+          )}
+        </div>
       </div>
     </div>
   );

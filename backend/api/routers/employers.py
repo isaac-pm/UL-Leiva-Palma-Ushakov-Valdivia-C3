@@ -51,6 +51,24 @@ def api_list_employers(
     )
 
 
+@router.get("/employers/map-data", response_model=ApiResponse)
+def api_get_employer_map_data(
+    session: Session = Depends(get_db_session),
+):
+    result = EmployerService.get_map_data(session)
+
+    if not result.is_success:
+        raise HTTPException(
+            status_code=result.status_code,
+            detail=result.error,
+        )
+
+    return ApiResponse.success(
+        data=result.value,
+        msg="Employer map data retrieved successfully",
+    )
+
+
 @router.get("/employers/{employer_id}", response_model=ApiResponse)
 def api_get_employer(
     employer_id: int = Path(..., description="Employer ID"),
@@ -70,4 +88,26 @@ def api_get_employer(
     return ApiResponse.success(
         data=result.value,
         msg="Employer retrieved successfully"
+    )
+
+
+@router.get("/employers/{employer_id}/detail", response_model=ApiResponse)
+def api_get_employer_detail(
+    employer_id: int = Path(..., description="Employer ID"),
+    session: Session = Depends(get_db_session),
+):
+    result = EmployerService.get_detail(
+        session=session,
+        employer_id=employer_id,
+    )
+
+    if not result.is_success:
+        raise HTTPException(
+            status_code=result.status_code,
+            detail=result.error,
+        )
+
+    return ApiResponse.success(
+        data=result.value,
+        msg="Employer detail retrieved successfully",
     )
