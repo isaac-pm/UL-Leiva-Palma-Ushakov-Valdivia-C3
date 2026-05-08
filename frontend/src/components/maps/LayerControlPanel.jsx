@@ -107,7 +107,7 @@ export default function LayerControlPanel({ layerState, setLayerState, stats, he
           max="50"
           value={hexRadius}
           onChange={(e) => setHexRadius(Number(e.target.value))}
-          className="mt-1 w-full cursor-pointer"
+          className="mt-1 w-full cursor-pointer accent-[var(--accent)]"
         />
       </div>
 

@@ -267,9 +267,6 @@ export default class BuildingsMapD3 {
       .append('path')
       .attr('class', 'building-polygon')
       .attr('vector-effect', 'non-scaling-stroke')
-      .attr('stroke', DEFAULT_STROKE)
-      .attr('stroke-width', 0.6)
-      .attr('fill-opacity', 0.65)
       .on('click', (event, d) => {
         this.currentSelection = d.id;
         this.updateSelection();
@@ -297,7 +294,9 @@ export default class BuildingsMapD3 {
 
     const merged = polygonEnter.merge(polygonSelection);
     merged
-      .attr('fill', (d) => DEFAULT_COLORS[d.type] || DEFAULT_COLORS.Unknown)
+      .attr('fill', 'none')
+      .attr('stroke', (d) => DEFAULT_COLORS[d.type] || DEFAULT_COLORS.Unknown)
+      .attr('stroke-width', 2)
       .attr('d', pathBuilder);
 
     this.updateSelection();
@@ -307,9 +306,10 @@ export default class BuildingsMapD3 {
     if (!this.zoomLayer) return;
 
     this.buildingsLayer.selectAll('path.building-polygon')
-      .attr('stroke', (d) => (d.id === this.currentSelection ? SELECTED_STROKE : DEFAULT_STROKE))
-      .attr('stroke-width', (d) => (d.id === this.currentSelection ? 1.8 : 0.6))
-      .attr('fill-opacity', (d) => (d.id === this.currentSelection ? 0.9 : 0.65));
+      .attr('stroke', (d) => (d.id === this.currentSelection
+        ? SELECTED_STROKE
+        : DEFAULT_COLORS[d.type] || DEFAULT_COLORS.Unknown))
+      .attr('stroke-width', (d) => (d.id === this.currentSelection ? 3 : 2));
   }
 
   updateHexbin(employers, layerState, stats, callbacks = {}, hexRadius = HEX_RADIUS_DEFAULT) {
@@ -425,7 +425,9 @@ export default class BuildingsMapD3 {
 
     if (!wageSpecific && !stabSpecific) {
       this.buildingsLayer.selectAll('path.building-polygon')
-        .attr('fill', d => DEFAULT_COLORS[d.type] || DEFAULT_COLORS.Unknown);
+        .attr('fill', 'none')
+        .attr('stroke', (d) => DEFAULT_COLORS[d.type] || DEFAULT_COLORS.Unknown)
+        .attr('stroke-width', 2);
       return;
     }
 
@@ -463,8 +465,10 @@ export default class BuildingsMapD3 {
           const v = varLookup[d.id];
           if (v != null && Number.isFinite(v)) return varColor(v);
         }
-        return DEFAULT_COLORS[d.type] || DEFAULT_COLORS.Unknown;
-      });
+        return 'none';
+      })
+      .attr('stroke', (d) => DEFAULT_COLORS[d.type] || DEFAULT_COLORS.Unknown)
+      .attr('stroke-width', 2);
   }
 
   destroy() {

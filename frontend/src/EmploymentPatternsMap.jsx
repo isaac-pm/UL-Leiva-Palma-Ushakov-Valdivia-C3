@@ -250,8 +250,8 @@ const EmploymentPatternsMap = () => {
         )}
       />
 
-      <div className="mt-6 grid justify-center gap-4 lg:grid-cols-[minmax(0,740px)_280px]">
-        <div className="relative aspect-square w-full overflow-hidden rounded-2xl border border-border/60 bg-card/80">
+      <div className="mt-6 grid justify-center gap-4 lg:grid-cols-[minmax(0,888px)_280px]">
+        <div className="relative h-[740px] w-full overflow-hidden rounded-2xl border border-border/60 bg-card/80">
           {(loading || empLoading) && (
             <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 text-sm text-muted-foreground">
               Loading...
