@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Provider } from 'react-redux';
 import MobilitySocialAnalytics from './MobilitySocialAnalytics';
+import EmploymentPatternsMap from './EmploymentPatternsMap';
 import { store } from './store';
 
 const tabs = [
@@ -47,7 +48,7 @@ function App() {
           className="border-b border-border/60 bg-background/40"
           aria-label="Analysis sections"
         >
-          <div className="mx-auto flex w-full max-w-7xl flex-wrap gap-2 p-4">
+          <div className="mx-auto flex w-full max-w-[90rem] flex-wrap gap-2 px-6 py-4">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
@@ -66,7 +67,7 @@ function App() {
           </div>
         </nav>
 
-        <div className="mx-auto w-full max-w-7xl">
+        <div className="mx-auto w-full max-w-[90rem] px-6">
           <section hidden={activeTab !== 'business-prosperity'}>
             <PlaceholderPanel title="Business Prosperity Analysis" />
           </section>
@@ -74,7 +75,7 @@ function App() {
             <PlaceholderPanel title="Resident Financial Health Over Time" />
           </section>
           <section hidden={activeTab !== 'employment-patterns'}>
-            <PlaceholderPanel title="Employment Patterns Map" />
+            <EmploymentPatternsMap />
           </section>
           <section hidden={activeTab !== 'mobility-social'}>
             <MobilitySocialAnalytics />

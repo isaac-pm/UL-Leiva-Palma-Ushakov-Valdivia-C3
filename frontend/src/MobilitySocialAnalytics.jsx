@@ -27,7 +27,7 @@ const MobilitySocialAnalytics = () => {
   }, [theme]);
 
   return (
-    <div className="w-full max-w-7xl mx-auto p-6">
+    <div className="w-full max-w-[90rem] mx-auto px-6 py-6">
       <header className="mb-8 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground mb-2">
