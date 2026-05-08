@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import BuildingsMapD3 from './utils/maps/buildingsMap';
 import { customfetch } from './utils/api';
+import AnalysisHeader from './components/AnalysisHeader';
 
 const formatNumber = (value) => {
   if (!Number.isFinite(value)) return '—';
@@ -120,35 +121,28 @@ const EmploymentPatternsMap = () => {
 
   return (
     <div className="mx-auto w-full max-w-[90rem] px-6 py-6">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-            Employment Patterns Map
-          </p>
-          <h2 className="mt-2 text-2xl font-semibold text-foreground">
-            Building footprints by activity hub
-          </h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Zoom and click buildings to highlight them. This layer is sourced from the
-            Buildings table.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-3 text-xs">
-          <div className="rounded-full bg-card px-3 py-1 text-foreground">
-            Total: {formatNumber(stats.total)}
+      <AnalysisHeader
+        overline="Employment Patterns Map"
+        title="Building footprints by activity hub"
+        subtitle="Zoom and click buildings to highlight them. This layer is sourced from the Buildings table."
+        right={(
+          <div className="flex flex-wrap justify-end gap-2 text-[11px]">
+            <div className="rounded-full bg-card px-3 py-1 text-foreground">
+              Total: {formatNumber(stats.total)}
+            </div>
+            {Object.entries(stats)
+              .filter(([key]) => key !== 'total')
+              .map(([key, value]) => (
+                <div key={key} className="rounded-full border border-border/60 px-3 py-1 text-muted-foreground">
+                  {key}: {formatNumber(value)}
+                </div>
+              ))}
           </div>
-          {Object.entries(stats)
-            .filter(([key]) => key !== 'total')
-            .map(([key, value]) => (
-              <div key={key} className="rounded-full border border-border/60 px-3 py-1 text-muted-foreground">
-                {key}: {formatNumber(value)}
-              </div>
-            ))}
-        </div>
-      </header>
+        )}
+      />
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_280px]">
-        <div className="relative overflow-hidden rounded-2xl border border-border/60 bg-card/80">
+      <div className="mt-6 grid justify-center gap-4 lg:grid-cols-[minmax(0,740px)_280px]">
+        <div className="relative aspect-square w-full overflow-hidden rounded-2xl border border-border/60 bg-card/80">
           {loading && (
             <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 text-sm text-muted-foreground">
               Loading buildings...
@@ -161,7 +155,7 @@ const EmploymentPatternsMap = () => {
           )}
           <div
             ref={containerRef}
-            className="mx-auto min-h-[260px] w-[70%]"
+            className="h-full w-full"
           />
           {hovered && (
             <div
@@ -174,7 +168,7 @@ const EmploymentPatternsMap = () => {
           )}
         </div>
 
-        <aside className="rounded-2xl border border-border/60 bg-background/70 p-4 text-sm text-muted-foreground">
+        <aside className="w-full rounded-2xl border border-border/60 bg-background/70 p-3 text-sm text-muted-foreground">
           <h3 className="text-base font-semibold text-foreground">Details</h3>
           <p className="mt-1 text-xs">
             Click on a building to lock the highlight. Scroll to zoom, drag to pan.

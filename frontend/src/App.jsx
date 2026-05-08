@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Provider } from 'react-redux';
 import MobilitySocialAnalytics from './MobilitySocialAnalytics';
 import EmploymentPatternsMap from './EmploymentPatternsMap';
+import AnalysisHeader from './components/AnalysisHeader';
 import { store } from './store';
 
 const tabs = [
@@ -25,21 +26,39 @@ const tabs = [
 
 const PlaceholderPanel = ({ title }) => {
   return (
-    <div className="mt-6 rounded-2xl border border-accent/20 bg-accent/5 p-10 text-left">
-      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-        Coming soon
-      </p>
-      <h2 className="mt-3 text-2xl font-semibold text-foreground">{title}</h2>
-      <p className="mt-2 text-sm text-muted-foreground">
-        This section is a placeholder for the upcoming analysis. Keep this tab
-        selected while we connect the data and visualizations.
-      </p>
+    <div className="mt-6">
+      <AnalysisHeader
+        overline="Coming soon"
+        title={title}
+        subtitle="This section is a placeholder for the upcoming analysis."
+      />
     </div>
   );
 };
 
+const getInitialTheme = () => {
+  if (typeof window === 'undefined') {
+    return 'light';
+  }
+
+  const stored = window.localStorage.getItem('theme');
+  if (stored === 'light' || stored === 'dark') {
+    return stored;
+  }
+
+  return window.matchMedia('(prefers-color-scheme: dark)').matches
+    ? 'dark'
+    : 'light';
+};
+
 function App() {
   const [activeTab, setActiveTab] = useState('mobility-social');
+  const [theme, setTheme] = useState(getInitialTheme);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    window.localStorage.setItem('theme', theme);
+  }, [theme]);
 
   return (
     <Provider store={store}>
@@ -67,6 +86,23 @@ function App() {
                 {tab.label}
               </button>
             ))}
+            <div className="mt-auto pt-6">
+              <button
+                type="button"
+                className="theme-toggle w-full justify-between"
+                onClick={() =>
+                  setTheme((current) => (current === 'dark' ? 'light' : 'dark'))
+                }
+                aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+              >
+                <span className="theme-toggle__label">
+                  {theme === 'dark' ? 'Dark mode' : 'Light mode'}
+                </span>
+                <span className="theme-toggle__track" aria-hidden="true">
+                  <span className="theme-toggle__thumb" />
+                </span>
+              </button>
+            </div>
           </div>
         </aside>
 

@@ -139,20 +139,29 @@ export default class BuildingsMapD3 {
     const dx = max[0] - min[0];
     const dy = max[1] - min[1];
     const containerWidth = this.el?.clientWidth || this.size.width;
-    const innerWidth = Math.max(containerWidth - this.margin.left - this.margin.right, 1);
-    const ratio = dx && dy ? dy / dx : 1;
-    const innerHeight = innerWidth * ratio;
-    const targetHeight = innerHeight + this.margin.top + this.margin.bottom;
-    const widthChanged = Math.abs(containerWidth - this.size.width) > 1;
+    const containerHeight = this.el?.clientHeight || this.size.height;
+    let targetWidth = containerWidth;
+    let targetHeight = containerHeight;
+
+    if (!containerHeight || containerHeight <= 0) {
+      const innerWidth = Math.max(containerWidth - this.margin.left - this.margin.right, 1);
+      const ratio = dx && dy ? dy / dx : 1;
+      const innerHeight = innerWidth * ratio;
+      targetHeight = innerHeight + this.margin.top + this.margin.bottom;
+      if (this.el) {
+        this.el.style.height = `${targetHeight}px`;
+      }
+    }
+
+    const widthChanged = Math.abs(targetWidth - this.size.width) > 1;
     const heightChanged = Math.abs(targetHeight - this.size.height) > 1;
 
     if (widthChanged || heightChanged) {
-      this.size = { width: containerWidth, height: targetHeight };
+      this.size = { width: targetWidth, height: targetHeight };
       this.svg
         .attr('width', this.size.width)
         .attr('height', this.size.height)
         .attr('viewBox', [0, 0, this.size.width, this.size.height]);
-      this.el.style.height = `${targetHeight}px`;
     }
 
     const width = this.size.width - this.margin.left - this.margin.right;
