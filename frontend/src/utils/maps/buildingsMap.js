@@ -11,6 +11,55 @@ const DEFAULT_COLORS = {
 const SELECTED_STROKE = '#fef3c7';
 const DEFAULT_STROKE = '#111827';
 
+const EDU_COLORS = {
+  Low: '#f97316',
+  HighSchoolOrCollege: '#f59e0b',
+  Bachelors: '#2563eb',
+  Graduate: '#a855f7',
+};
+
+const HEX_RADIUS_DEFAULT = 20;
+
+function hexagonPath(radius) {
+  const pts = [];
+  for (let i = 0; i < 6; i++) {
+    const a = Math.PI / 3 * i - Math.PI / 6;
+    pts.push([radius * Math.cos(a), radius * Math.sin(a)]);
+  }
+  return pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0]},${p[1]}`).join(' ') + 'Z';
+}
+
+function generateHexGrid(points, radius, width, height) {
+  const dx = radius * Math.sqrt(3);
+  const dy = radius * 1.5;
+  const ox = dx / 2;
+  const r2 = radius * radius;
+
+  const pad = radius * 2;
+  const startCol = Math.floor((0 - pad) / dx) - 1;
+  const endCol = Math.ceil((width + pad) / dx) + 1;
+  const startRow = Math.floor((0 - pad) / dy) - 1;
+  const endRow = Math.ceil((height + pad) / dy) + 1;
+
+  const bins = [];
+  for (let row = startRow; row < endRow; row++) {
+    for (let col = startCol; col < endCol; col++) {
+      const cx = col * dx + (row % 2) * ox;
+      const cy = row * dy;
+      const members = [];
+      for (const p of points) {
+        const ddx = p.px - cx;
+        const ddy = p.py - cy;
+        if (ddx * ddx + ddy * ddy < r2) {
+          members.push(p);
+        }
+      }
+      bins.push({ x: cx, y: cy, members });
+    }
+  }
+  return bins;
+}
+
 export default class BuildingsMapD3 {
   constructor(el, options = {}) {
     this.el = el;
@@ -21,6 +70,10 @@ export default class BuildingsMapD3 {
     this.margin = { top: 16, right: 16, bottom: 16, left: 16 };
     this.rotation = options.rotation ?? 'ccw';
     this.useGeoCorrection = options.useGeoCorrection ?? true;
+    this.mapPoint = null;
+    this.hexbinLayer = null;
+    this.buildingsLayer = null;
+    this.currentZoomK = 1;
   }
 
   create({ size }) {
@@ -40,13 +93,17 @@ export default class BuildingsMapD3 {
       .style('height', '100%');
 
     this.zoomLayer = this.svg.append('g').attr('class', 'buildings-map-layer');
+    this.hexbinLayer = this.zoomLayer.append('g').attr('class', 'hexbin-layer');
+    this.buildingsLayer = this.zoomLayer.append('g').attr('class', 'buildings-layer');
 
     this.zoom = d3
       .zoom()
       .scaleExtent([0.3, 15])
       .filter((event) => !event.ctrlKey && !event.button)
       .on('zoom', (event) => {
+        this.currentZoomK = event.transform.k;
         this.zoomLayer.attr('transform', event.transform);
+        this.updateBuildingStrokeWidth();
       });
 
     this.svg.call(this.zoom);
@@ -106,6 +163,12 @@ export default class BuildingsMapD3 {
       this.currentSelection = null;
     }
 
+    if (!polygons || polygons.length === 0) {
+      this.buildingsLayer.selectAll('*').remove();
+      this.hexbinLayer.selectAll('*').remove();
+      return;
+    }
+
     const useGeoCorrection = this.useGeoCorrection && this.isGeoCoordinates(polygons);
 
     const projectPoint = ([x, y]) => {
@@ -131,7 +194,8 @@ export default class BuildingsMapD3 {
 
     const bounds = this.computeBounds(polygons, projectPoint);
     if (!bounds) {
-      this.zoomLayer.selectAll('*').remove();
+      this.buildingsLayer.selectAll('*').remove();
+      this.hexbinLayer.selectAll('*').remove();
       return;
     }
 
@@ -189,11 +253,13 @@ export default class BuildingsMapD3 {
       return [x, y];
     };
 
+    this.mapPoint = mapPoint;
+
     const transform = d3.zoomIdentity;
 
     this.svg.call(this.zoom.transform, transform);
 
-    const polygonSelection = this.zoomLayer
+    const polygonSelection = this.buildingsLayer
       .selectAll('path.building-polygon')
       .data(polygons, (d) => d.id);
 
@@ -204,9 +270,6 @@ export default class BuildingsMapD3 {
       .append('path')
       .attr('class', 'building-polygon')
       .attr('vector-effect', 'non-scaling-stroke')
-      .attr('stroke', DEFAULT_STROKE)
-      .attr('stroke-width', 0.6)
-      .attr('fill-opacity', 0.65)
       .on('click', (event, d) => {
         this.currentSelection = d.id;
         this.updateSelection();
@@ -234,19 +297,193 @@ export default class BuildingsMapD3 {
 
     const merged = polygonEnter.merge(polygonSelection);
     merged
-      .attr('fill', (d) => DEFAULT_COLORS[d.type] || DEFAULT_COLORS.Unknown)
+      .attr('fill', 'none')
+      .attr('stroke', (d) => DEFAULT_COLORS[d.type] || DEFAULT_COLORS.Unknown)
+      .attr('stroke-width', (d) => this.getZoomStrokeWidth(d))
       .attr('d', pathBuilder);
 
     this.updateSelection();
   }
 
+  getZoomStrokeWidth(d) {
+    const w = Math.max(0.2, Math.min(2, 0.5 * this.currentZoomK));
+    if (d && d.id === this.currentSelection) return Math.max(2.5, w + 1);
+    return w;
+  }
+
+  updateBuildingStrokeWidth() {
+    if (!this.buildingsLayer) return;
+    this.buildingsLayer.selectAll('path.building-polygon')
+      .attr('stroke-width', (d) => this.getZoomStrokeWidth(d));
+  }
+
   updateSelection() {
     if (!this.zoomLayer) return;
 
-    this.zoomLayer.selectAll('path.building-polygon')
-      .attr('stroke', (d) => (d.id === this.currentSelection ? SELECTED_STROKE : DEFAULT_STROKE))
-      .attr('stroke-width', (d) => (d.id === this.currentSelection ? 1.8 : 0.6))
-      .attr('fill-opacity', (d) => (d.id === this.currentSelection ? 0.9 : 0.65));
+    this.buildingsLayer.selectAll('path.building-polygon')
+      .attr('stroke', (d) => (d.id === this.currentSelection
+        ? SELECTED_STROKE
+        : DEFAULT_COLORS[d.type] || DEFAULT_COLORS.Unknown))
+      .attr('stroke-width', (d) => this.getZoomStrokeWidth(d));
+  }
+
+  updateHexbin(employers, layerState, stats, callbacks = {}, hexRadius = HEX_RADIUS_DEFAULT) {
+    if (!this.hexbinLayer || !this.mapPoint) return;
+
+    const activeLayer = ['jobConcentration', 'wageGeography', 'educationClusters', 'employerStability']
+      .find(k => layerState[k]);
+
+    if (!activeLayer) {
+      this.hexbinLayer.selectAll('*').remove();
+      return;
+    }
+
+    if ((activeLayer === 'wageGeography' && layerState.wageMode === 'specific') ||
+        (activeLayer === 'employerStability' && layerState.stabilityMode === 'specific')) {
+      this.hexbinLayer.selectAll('*').remove();
+      return;
+    }
+
+    const width = this.size.width - this.margin.left - this.margin.right;
+    const height = this.size.height - this.margin.top - this.margin.bottom;
+
+    const projected = employers.map(e => {
+      const [px, py] = this.mapPoint([e.location.x, e.location.y]);
+      return { ...e, px, py };
+    });
+
+    const bins = generateHexGrid(projected, hexRadius, width, height);
+
+    let colorFn;
+
+    if (activeLayer === 'jobConcentration') {
+      bins.forEach(b => {
+        b.value = b.members.reduce((s, m) => s + m.jobCount, 0);
+      });
+      const maxVal = Math.max(...bins.map(b => b.value), 1);
+      colorFn = d3.scaleSequential([0, maxVal], d3.interpolateRdYlGn);
+    } else if (activeLayer === 'wageGeography') {
+      bins.forEach(b => {
+        const valid = b.members.map(m => m.avgHourlyRate).filter(r => r > 0);
+        b.value = valid.length > 0 ? d3.mean(valid) : 0;
+      });
+      const [minV, maxV] = d3.extent(bins.map(b => b.value)) || [0, 1];
+      colorFn = d3.scaleSequential([Math.max(0, minV), Math.max(maxV, 1)], d3.interpolateRdYlGn);
+    } else if (activeLayer === 'educationClusters') {
+      bins.forEach(b => {
+        const counts = {};
+        b.members.forEach(m => {
+          Object.entries(m.educationMix || {}).forEach(([edu, c]) => {
+            counts[edu] = (counts[edu] || 0) + c;
+          });
+        });
+        const entries = Object.entries(counts);
+        b.value = entries.length > 0 ? entries.sort((a, b1) => b1[1] - a[1])[0][0] : 'Unknown';
+      });
+    } else if (activeLayer === 'employerStability') {
+      bins.forEach(b => {
+        const valid = b.members.map(m => m.wageVariance).filter(v => Number.isFinite(v));
+        b.value = valid.length > 0 ? d3.mean(valid) : 0;
+      });
+      const [t1, t2] = (stats && stats.varianceThresholds) || [0, 0];
+      colorFn = (v) => {
+        if (v <= t1) return '#22c55e';
+        if (v <= t2) return '#f59e0b';
+        return '#ef4444';
+      };
+    }
+
+    const hexPath = hexagonPath(hexRadius);
+    const selection = this.hexbinLayer
+      .selectAll('path.hex-bin')
+      .data(bins);
+
+    selection.exit().remove();
+
+    const enter = selection.enter()
+      .append('path')
+      .attr('class', 'hex-bin')
+      .attr('vector-effect', 'non-scaling-stroke')
+      .on('mouseover', (event, d) => {
+        if (d.members.length > 0 && callbacks.onHover) callbacks.onHover(event, d);
+      })
+      .on('mouseleave', () => {
+        if (callbacks.onHover) callbacks.onHover(null, null);
+      })
+      .on('click', (event, d) => {
+        if (d.members.length > 0 && callbacks.onSelect) callbacks.onSelect(event, d);
+      });
+
+    const merged = enter.merge(selection);
+
+    merged
+      .attr('d', hexPath)
+      .attr('transform', d => `translate(${d.x},${d.y})`)
+      .attr('stroke', d => d.members.length === 0 ? '#9ca3af' : '#fff')
+      .attr('stroke-width', 0.5)
+      .attr('stroke-opacity', d => d.members.length === 0 ? 0.5 : 0.8)
+      .attr('fill', d => {
+        if (d.members.length === 0) return 'none';
+        if (activeLayer === 'educationClusters') {
+          return EDU_COLORS[d.value] || '#9ca3af';
+        }
+        return colorFn(d.value);
+      })
+      .attr('fill-opacity', d => d.members.length === 0 ? 0 : 0.7);
+  }
+
+  updatePolygonFill(employers, layerState, stats) {
+    if (!this.buildingsLayer) return;
+
+    const wageSpecific = layerState.wageGeography && layerState.wageMode === 'specific';
+    const stabSpecific = layerState.employerStability && layerState.stabilityMode === 'specific';
+
+    if (!wageSpecific && !stabSpecific) {
+      this.buildingsLayer.selectAll('path.building-polygon')
+        .attr('fill', 'none')
+        .attr('stroke', (d) => DEFAULT_COLORS[d.type] || DEFAULT_COLORS.Unknown)
+        .attr('stroke-width', (d) => this.getZoomStrokeWidth(d));
+      return;
+    }
+
+    const wageLookup = {};
+    const varLookup = {};
+    employers.forEach(e => {
+      if (e.buildingId != null) {
+        wageLookup[e.buildingId] = e.avgHourlyRate;
+        varLookup[e.buildingId] = e.wageVariance;
+      }
+    });
+
+    const wages = Object.values(wageLookup).filter(w => w > 0);
+    const minWage = wages.length > 0 ? Math.min(...wages) : 0;
+    const maxWage = wages.length > 0 ? Math.max(...wages) : 1;
+    const wageColor = d3.scaleSequential(
+      [Math.max(0, minWage), Math.max(maxWage, 1)],
+      d3.interpolateRdYlGn
+    );
+
+    const [t1, t2] = (stats && stats.varianceThresholds) || [0, 0];
+    const varColor = (v) => {
+      if (v <= t1) return '#22c55e';
+      if (v <= t2) return '#f59e0b';
+      return '#ef4444';
+    };
+
+    this.buildingsLayer.selectAll('path.building-polygon')
+      .attr('fill', (d) => {
+        if (wageSpecific) {
+          const w = wageLookup[d.id];
+          if (w != null && w > 0) return wageColor(w);
+        }
+        if (stabSpecific) {
+          const v = varLookup[d.id];
+          if (v != null && Number.isFinite(v)) return varColor(v);
+        }
+        return 'none';
+      })
+      .attr('stroke', (d) => DEFAULT_COLORS[d.type] || DEFAULT_COLORS.Unknown)
+      .attr('stroke-width', (d) => this.getZoomStrokeWidth(d));
   }
 
   destroy() {
