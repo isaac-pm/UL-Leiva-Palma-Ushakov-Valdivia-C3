@@ -20,7 +20,8 @@ from api.routers import (
     social_router,
     travel_router,
     activity_router,
-    social_network_analytics_router
+    social_network_analytics_router,
+    buildings_map_router
 )
 
 tprint("Pura vida \n harni tsytsky!",font="art")
@@ -49,6 +50,7 @@ app.add_middleware(
 
 # Register routers
 app.include_router(participants_router, prefix="/api")
+app.include_router(buildings_map_router, prefix="/api")
 app.include_router(buildings_router, prefix="/api")
 app.include_router(apartments_router, prefix="/api")
 app.include_router(employers_router, prefix="/api")

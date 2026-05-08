@@ -1,58 +1,16 @@
-import { useEffect, useState } from 'react';
 import SankeyDiagram from './components/SankeyDiagram';
 import NetworkGraph from './components/NetworkGraph';
 import TimeSlider from './components/TimeSlider';
-
-const getInitialTheme = () => {
-  if (typeof window === 'undefined') {
-    return 'light';
-  }
-
-  const stored = window.localStorage.getItem('theme');
-  if (stored === 'light' || stored === 'dark') {
-    return stored;
-  }
-
-  return window.matchMedia('(prefers-color-scheme: dark)').matches
-    ? 'dark'
-    : 'light';
-};
+import AnalysisHeader from './components/AnalysisHeader';
 
 const MobilitySocialAnalytics = () => {
-  const [theme, setTheme] = useState(getInitialTheme);
-
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    window.localStorage.setItem('theme', theme);
-  }, [theme]);
-
   return (
-    <div className="w-full max-w-7xl mx-auto p-6">
-      <header className="mb-8 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">
-            Mobility and Social Network Analysis
-          </h1>
-          <p className="text-muted-foreground">
-            Visualizing travel patterns and social connections with financial outcomes
-          </p>
-        </div>
-        <button
-          type="button"
-          className="theme-toggle"
-          onClick={() =>
-            setTheme((current) => (current === 'dark' ? 'light' : 'dark'))
-          }
-          aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-        >
-          <span className="theme-toggle__label">
-            {theme === 'dark' ? 'Dark mode' : 'Light mode'}
-          </span>
-          <span className="theme-toggle__track" aria-hidden="true">
-            <span className="theme-toggle__thumb" />
-          </span>
-        </button>
-      </header>
+    <div className="w-full max-w-[90rem] mx-auto px-6 py-6">
+      <AnalysisHeader
+        overline="Mobility Analysis"
+        title="Mobility and Social Network Analysis"
+        subtitle="Visualizing travel patterns and social connections with financial outcomes"
+      />
 
       <TimeSlider />
 

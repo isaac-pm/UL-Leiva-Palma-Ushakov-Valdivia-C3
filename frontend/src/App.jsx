@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Provider } from 'react-redux';
 import MobilitySocialAnalytics from './MobilitySocialAnalytics';
+import EmploymentPatternsMap from './EmploymentPatternsMap';
+import AnalysisHeader from './components/AnalysisHeader';
 import { store } from './store';
 
 const tabs = [
@@ -24,35 +26,56 @@ const tabs = [
 
 const PlaceholderPanel = ({ title }) => {
   return (
-    <div className="mt-6 rounded-2xl border border-accent/20 bg-accent/5 p-10 text-left">
-      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-        Coming soon
-      </p>
-      <h2 className="mt-3 text-2xl font-semibold text-foreground">{title}</h2>
-      <p className="mt-2 text-sm text-muted-foreground">
-        This section is a placeholder for the upcoming analysis. Keep this tab
-        selected while we connect the data and visualizations.
-      </p>
+    <div className="mt-6">
+      <AnalysisHeader
+        overline="Coming soon"
+        title={title}
+        subtitle="This section is a placeholder for the upcoming analysis."
+      />
     </div>
   );
 };
 
+const getInitialTheme = () => {
+  if (typeof window === 'undefined') {
+    return 'light';
+  }
+
+  const stored = window.localStorage.getItem('theme');
+  if (stored === 'light' || stored === 'dark') {
+    return stored;
+  }
+
+  return window.matchMedia('(prefers-color-scheme: dark)').matches
+    ? 'dark'
+    : 'light';
+};
+
 function App() {
   const [activeTab, setActiveTab] = useState('mobility-social');
+  const [theme, setTheme] = useState(getInitialTheme);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    window.localStorage.setItem('theme', theme);
+  }, [theme]);
 
   return (
     <Provider store={store}>
-      <div className="w-full">
-        <nav
-          className="border-b border-border/60 bg-background/40"
+      <div className="flex min-h-screen w-full">
+        <aside
+          className="sticky top-0 h-screen w-64 shrink-0 border-r border-border/60 bg-background/40"
           aria-label="Analysis sections"
         >
-          <div className="mx-auto flex w-full max-w-7xl flex-wrap gap-2 p-4">
+          <div className="flex h-full flex-col gap-2 px-4 py-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+              Analysis
+            </p>
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 type="button"
-                className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                className={`w-full rounded-xl px-4 py-3 text-left text-sm font-medium transition ${
                   activeTab === tab.id
                     ? 'bg-accent text-white shadow-md'
                     : 'bg-card text-muted-foreground hover:text-foreground'
@@ -63,23 +86,42 @@ function App() {
                 {tab.label}
               </button>
             ))}
+            <div className="mt-auto pt-6">
+              <button
+                type="button"
+                className="theme-toggle w-full justify-between"
+                onClick={() =>
+                  setTheme((current) => (current === 'dark' ? 'light' : 'dark'))
+                }
+                aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+              >
+                <span className="theme-toggle__label">
+                  {theme === 'dark' ? 'Dark mode' : 'Light mode'}
+                </span>
+                <span className="theme-toggle__track" aria-hidden="true">
+                  <span className="theme-toggle__thumb" />
+                </span>
+              </button>
+            </div>
           </div>
-        </nav>
+        </aside>
 
-        <div className="mx-auto w-full max-w-7xl">
-          <section hidden={activeTab !== 'business-prosperity'}>
-            <PlaceholderPanel title="Business Prosperity Analysis" />
-          </section>
-          <section hidden={activeTab !== 'resident-financial-health'}>
-            <PlaceholderPanel title="Resident Financial Health Over Time" />
-          </section>
-          <section hidden={activeTab !== 'employment-patterns'}>
-            <PlaceholderPanel title="Employment Patterns Map" />
-          </section>
-          <section hidden={activeTab !== 'mobility-social'}>
-            <MobilitySocialAnalytics />
-          </section>
-        </div>
+        <main className="flex-1">
+          <div className="w-full">
+            <section hidden={activeTab !== 'business-prosperity'}>
+              <PlaceholderPanel title="Business Prosperity Analysis" />
+            </section>
+            <section hidden={activeTab !== 'resident-financial-health'}>
+              <PlaceholderPanel title="Resident Financial Health Over Time" />
+            </section>
+            <section hidden={activeTab !== 'employment-patterns'}>
+              <EmploymentPatternsMap />
+            </section>
+            <section hidden={activeTab !== 'mobility-social'}>
+              <MobilitySocialAnalytics />
+            </section>
+          </div>
+        </main>
       </div>
     </Provider>
   );
