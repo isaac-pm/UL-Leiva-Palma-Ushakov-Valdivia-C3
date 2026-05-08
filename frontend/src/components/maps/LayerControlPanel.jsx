@@ -35,6 +35,10 @@ export default function LayerControlPanel({ layerState, setLayerState, stats, he
 
   const activeLayer = LAYER_DEFS.find((d) => layerState[d.key]);
 
+  const isSpecificMode =
+    (activeLayer?.key === 'wageGeography' && layerState.wageMode === 'specific') ||
+    (activeLayer?.key === 'employerStability' && layerState.stabilityMode === 'specific');
+
   return (
     <div className="rounded-2xl border border-border/60 bg-background/70 p-3 text-sm text-muted-foreground">
       <h3 className="text-base font-semibold text-foreground">Employer Layers</h3>
@@ -96,20 +100,22 @@ export default function LayerControlPanel({ layerState, setLayerState, stats, he
         </span>
       </div>
 
-      <div className="mt-3 border-t border-border/60 pt-2">
-        <label className="flex items-center justify-between text-[11px] font-medium text-foreground">
-          <span>Hex Radius</span>
-          <span className="tabular-nums text-muted-foreground">{hexRadius}px</span>
-        </label>
-        <input
-          type="range"
-          min="5"
-          max="50"
-          value={hexRadius}
-          onChange={(e) => setHexRadius(Number(e.target.value))}
-          className="mt-1 w-full cursor-pointer accent-[var(--accent)]"
-        />
-      </div>
+      {!isSpecificMode && (
+        <div className="mt-3 border-t border-border/60 pt-2">
+          <label className="flex items-center justify-between text-[11px] font-medium text-foreground">
+            <span>Hex Radius</span>
+            <span className="tabular-nums text-muted-foreground">{hexRadius}px</span>
+          </label>
+          <input
+            type="range"
+            min="5"
+            max="50"
+            value={hexRadius}
+            onChange={(e) => setHexRadius(Number(e.target.value))}
+            className="mt-1 w-full cursor-pointer accent-[var(--accent)]"
+          />
+        </div>
+      )}
 
       {activeLayer && (
         <div className="mt-2 border-t border-border/60 pt-2 text-[11px]">

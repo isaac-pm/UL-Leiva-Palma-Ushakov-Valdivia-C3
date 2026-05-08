@@ -73,6 +73,7 @@ export default class BuildingsMapD3 {
     this.mapPoint = null;
     this.hexbinLayer = null;
     this.buildingsLayer = null;
+    this.currentZoomK = 1;
   }
 
   create({ size }) {
@@ -100,7 +101,9 @@ export default class BuildingsMapD3 {
       .scaleExtent([0.3, 15])
       .filter((event) => !event.ctrlKey && !event.button)
       .on('zoom', (event) => {
+        this.currentZoomK = event.transform.k;
         this.zoomLayer.attr('transform', event.transform);
+        this.updateBuildingStrokeWidth();
       });
 
     this.svg.call(this.zoom);
@@ -296,10 +299,22 @@ export default class BuildingsMapD3 {
     merged
       .attr('fill', 'none')
       .attr('stroke', (d) => DEFAULT_COLORS[d.type] || DEFAULT_COLORS.Unknown)
-      .attr('stroke-width', 2)
+      .attr('stroke-width', (d) => this.getZoomStrokeWidth(d))
       .attr('d', pathBuilder);
 
     this.updateSelection();
+  }
+
+  getZoomStrokeWidth(d) {
+    const w = Math.max(0.2, Math.min(2, 0.5 * this.currentZoomK));
+    if (d && d.id === this.currentSelection) return Math.max(2.5, w + 1);
+    return w;
+  }
+
+  updateBuildingStrokeWidth() {
+    if (!this.buildingsLayer) return;
+    this.buildingsLayer.selectAll('path.building-polygon')
+      .attr('stroke-width', (d) => this.getZoomStrokeWidth(d));
   }
 
   updateSelection() {
@@ -309,7 +324,7 @@ export default class BuildingsMapD3 {
       .attr('stroke', (d) => (d.id === this.currentSelection
         ? SELECTED_STROKE
         : DEFAULT_COLORS[d.type] || DEFAULT_COLORS.Unknown))
-      .attr('stroke-width', (d) => (d.id === this.currentSelection ? 3 : 2));
+      .attr('stroke-width', (d) => this.getZoomStrokeWidth(d));
   }
 
   updateHexbin(employers, layerState, stats, callbacks = {}, hexRadius = HEX_RADIUS_DEFAULT) {
@@ -427,7 +442,7 @@ export default class BuildingsMapD3 {
       this.buildingsLayer.selectAll('path.building-polygon')
         .attr('fill', 'none')
         .attr('stroke', (d) => DEFAULT_COLORS[d.type] || DEFAULT_COLORS.Unknown)
-        .attr('stroke-width', 2);
+        .attr('stroke-width', (d) => this.getZoomStrokeWidth(d));
       return;
     }
 
@@ -468,7 +483,7 @@ export default class BuildingsMapD3 {
         return 'none';
       })
       .attr('stroke', (d) => DEFAULT_COLORS[d.type] || DEFAULT_COLORS.Unknown)
-      .attr('stroke-width', 2);
+      .attr('stroke-width', (d) => this.getZoomStrokeWidth(d));
   }
 
   destroy() {
