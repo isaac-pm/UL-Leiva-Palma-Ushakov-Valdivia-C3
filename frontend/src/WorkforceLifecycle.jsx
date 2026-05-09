@@ -19,8 +19,8 @@ const WorkforceLifecycle = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [visibleSectors, setVisibleSectors] = useState(new Set());
-  const [volatilityThreshold, setVolatilityThreshold] = useState(0);
-  const [volatilityMaxLimit, setVolatilityMaxLimit] = useState(2);
+  const [volatilityRange, setVolatilityRange] = useState([0, 2]);
+  const [maxVolatility, setMaxVolatility] = useState(2);
   const [cellMetric, setCellMetric] = useState('headcount');
   const [sortBy, setSortBy] = useState('avgHeadcount');
 
@@ -49,7 +49,8 @@ const WorkforceLifecycle = () => {
         setData(result);
         setVisibleSectors(new Set(result.sectors || []));
         const maxV = result.aggregates?.maxVolatility || 2;
-        setVolatilityMaxLimit(maxV);
+        setMaxVolatility(maxV);
+        setVolatilityRange([0, maxV]);
         setError(null);
       } catch (err) {
         if (!mounted) return;
@@ -90,8 +91,8 @@ const WorkforceLifecycle = () => {
 
   useEffect(() => {
     if (!chartInstance.current) return;
-    chartInstance.current.setVolatilityThreshold(volatilityThreshold);
-  }, [volatilityThreshold]);
+    chartInstance.current.setVolatilityRange(volatilityRange);
+  }, [volatilityRange]);
 
   useEffect(() => {
     if (!chartInstance.current || !data) return;
@@ -239,37 +240,48 @@ const WorkforceLifecycle = () => {
 
             <div>
               <div className="flex justify-between items-center mb-1">
-                <span className="text-xs font-medium text-foreground">Volatility Threshold</span>
-                <span className="text-[10px] text-muted-foreground">
-                  {volatilityThreshold.toFixed(2)} / {volatilityMaxLimit.toFixed(2)}
+                <span className="text-xs font-medium text-foreground">Volatility Range</span>
+                <span className="text-[10px] text-muted-foreground tabular-nums">
+                  {volatilityRange[0].toFixed(2)} – {volatilityRange[1].toFixed(2)}
                 </span>
               </div>
-              <input
-                type="range"
-                min={0}
-                max={volatilityMaxLimit || 2}
-                step={0.05}
-                value={Math.min(volatilityThreshold, volatilityMaxLimit)}
-                onChange={(e) => setVolatilityThreshold(parseFloat(e.target.value))}
-                className="w-full h-1.5 rounded-lg appearance-none cursor-pointer bg-border"
-              />
-              <div className="mt-1.5 flex items-center gap-2">
-                <span className="text-[10px] text-muted-foreground">Max:</span>
-                <input
-                  type="number"
-                  min={0.5}
-                  step={0.5}
-                  value={volatilityMaxLimit}
-                  onChange={(e) => {
-                    const val = Math.max(0.5, parseFloat(e.target.value) || 2);
-                    setVolatilityMaxLimit(val);
-                    if (volatilityThreshold > val) {
-                      setVolatilityThreshold(val);
-                    }
+              <div className="relative h-6 mt-1">
+                <div className="absolute top-1/2 left-0 right-0 h-1 -translate-y-1/2 rounded-full bg-border" />
+                <div
+                  className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-purple-500"
+                  style={{
+                    left: `${(volatilityRange[0] / (maxVolatility || 2)) * 100}%`,
+                    width: `${((volatilityRange[1] - volatilityRange[0]) / (maxVolatility || 2)) * 100}%`,
                   }}
-                  className="w-16 rounded border border-border/60 bg-background px-1.5 py-0.5 text-[11px] text-foreground"
+                />
+                <input
+                  type="range"
+                  min={0}
+                  max={maxVolatility || 2}
+                  step={0.05}
+                  value={volatilityRange[0]}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value);
+                    setVolatilityRange(prev => [Math.min(v, prev[1]), prev[1]]);
+                  }}
+                  className="absolute inset-0 w-full appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-600 [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:h-3.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-purple-600 [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:shadow-md [&::-moz-range-thumb]:cursor-pointer"
+                />
+                <input
+                  type="range"
+                  min={0}
+                  max={maxVolatility || 2}
+                  step={0.05}
+                  value={volatilityRange[1]}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value);
+                    setVolatilityRange(prev => [prev[0], Math.max(v, prev[0])]);
+                  }}
+                  className="absolute inset-0 w-full appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-600 [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:h-3.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-purple-600 [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:shadow-md [&::-moz-range-thumb]:cursor-pointer"
                 />
               </div>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Show employers with volatility index between the two values.
+              </p>
             </div>
           </div>
 

@@ -22,7 +22,7 @@ export default class WorkforceMatrixChart {
     this.size = { width: 900, height: 550 };
     this.data = null;
     this.visibleSectors = new Set();
-    this.volatilityThreshold = 0;
+    this.volatilityRange = [0, Infinity];
     this.cellMetric = 'headcount';
     this.sortBy = 'avgHeadcount';
     this.svg = null;
@@ -72,8 +72,8 @@ export default class WorkforceMatrixChart {
     this.render();
   }
 
-  setVolatilityThreshold(threshold) {
-    this.volatilityThreshold = threshold;
+  setVolatilityRange(range) {
+    this.volatilityRange = range;
     this.render();
   }
 
@@ -95,7 +95,8 @@ export default class WorkforceMatrixChart {
 
     let rows = this.data.filter(e => {
       const sectorOk = this.visibleSectors.has(e.industrySector);
-      const volatilityOk = e.volatilityIndex >= this.volatilityThreshold;
+      const vi = e.volatilityIndex;
+      const volatilityOk = vi >= this.volatilityRange[0] && vi <= this.volatilityRange[1];
       return sectorOk && volatilityOk;
     });
 
