@@ -11,13 +11,6 @@ const DEFAULT_COLORS = {
 const SELECTED_STROKE = '#fef3c7';
 const DEFAULT_STROKE = '#111827';
 
-const EDU_COLORS = {
-  Low: '#f97316',
-  HighSchoolOrCollege: '#f59e0b',
-  Bachelors: '#2563eb',
-  Graduate: '#a855f7',
-};
-
 const HEX_RADIUS_DEFAULT = 20;
 
 function hexagonPath(radius) {
@@ -330,7 +323,7 @@ export default class BuildingsMapD3 {
   updateHexbin(employers, layerState, stats, callbacks = {}, hexRadius = HEX_RADIUS_DEFAULT) {
     if (!this.hexbinLayer || !this.mapPoint) return;
 
-    const activeLayer = ['jobConcentration', 'wageGeography', 'educationClusters', 'employerStability']
+    const activeLayer = ['jobConcentration', 'wageGeography', 'employerStability']
       .find(k => layerState[k]);
 
     if (!activeLayer) {
@@ -369,17 +362,6 @@ export default class BuildingsMapD3 {
       });
       const [minV, maxV] = d3.extent(bins.map(b => b.value)) || [0, 1];
       colorFn = d3.scaleSequential([Math.max(0, minV), Math.max(maxV, 1)], d3.interpolateRdYlGn);
-    } else if (activeLayer === 'educationClusters') {
-      bins.forEach(b => {
-        const counts = {};
-        b.members.forEach(m => {
-          Object.entries(m.educationMix || {}).forEach(([edu, c]) => {
-            counts[edu] = (counts[edu] || 0) + c;
-          });
-        });
-        const entries = Object.entries(counts);
-        b.value = entries.length > 0 ? entries.sort((a, b1) => b1[1] - a[1])[0][0] : 'Unknown';
-      });
     } else if (activeLayer === 'employerStability') {
       bins.forEach(b => {
         const valid = b.members.map(m => m.wageVariance).filter(v => Number.isFinite(v));
@@ -424,9 +406,6 @@ export default class BuildingsMapD3 {
       .attr('stroke-opacity', d => d.members.length === 0 ? 0.5 : 0.8)
       .attr('fill', d => {
         if (d.members.length === 0) return 'none';
-        if (activeLayer === 'educationClusters') {
-          return EDU_COLORS[d.value] || '#9ca3af';
-        }
         return colorFn(d.value);
       })
       .attr('fill-opacity', d => d.members.length === 0 ? 0 : 0.7);

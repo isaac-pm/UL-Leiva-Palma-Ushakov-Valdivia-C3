@@ -226,7 +226,7 @@ const EmploymentPatternsMap = () => {
   };
 
   const anyLayerActive = layerState.jobConcentration || layerState.wageGeography ||
-    layerState.educationClusters || layerState.employerStability;
+    layerState.employerStability;
 
   return (
     <div className="mx-auto w-full max-w-[90rem] px-6 py-6">
@@ -323,9 +323,6 @@ const EmploymentPatternsMap = () => {
                   <div className="mt-2 text-sm text-foreground">
                     <div>Building {selected.id}</div>
                     <div className="text-xs text-muted-foreground">{selected.type || 'Unknown'}</div>
-                    <div className="mt-3 text-[11px] text-muted-foreground">
-                      Polygon rings: {selected.rings?.length || 0}
-                    </div>
                   </div>
                 ) : (
                   <p className="mt-2 text-xs">No building selected yet.</p>

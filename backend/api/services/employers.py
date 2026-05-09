@@ -1,9 +1,9 @@
 import math
 import re
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 from sqlmodel import Session, select, func
-from sqlalchemy import Float, case, cast, distinct, text
+from sqlalchemy import case, distinct
 
 from core.result import Result
 from core.models.base import Employers, Jobs, Buildings, ActivityLogs
@@ -132,28 +132,6 @@ class EmployerService:
     @staticmethod
     def get_map_data(session: Session) -> Result:
         try:
-            edu_subquery = (
-                select(
-                    Jobs.employerId.label("employerId"),
-                    Jobs.educationRequirement.label("educationRequirement"),
-                    func.count(Jobs.jobId).label("count"),
-                )
-                .group_by(Jobs.employerId, Jobs.educationRequirement)
-                .subquery()
-            )
-
-            edu_agg = (
-                select(
-                    edu_subquery.c.employerId,
-                    func.jsonb_object_agg(
-                        edu_subquery.c.educationRequirement,
-                        edu_subquery.c.count,
-                    ).label("educationMix"),
-                )
-                .group_by(edu_subquery.c.employerId)
-                .subquery()
-            )
-
             shift_hours = case(
                 (
                     func.count(Jobs.jobId) > 0,
@@ -177,18 +155,15 @@ class EmployerService:
                     func.avg(Jobs.hourlyRate).label("avgHourlyRate"),
                     func.coalesce(func.stddev_samp(Jobs.hourlyRate), 0.0).label("wageVariance"),
                     shift_hours.label("avgShiftHours"),
-                    edu_agg.c.educationMix,
                 )
                 .select_from(Employers)
                 .join(Jobs, Jobs.employerId == Employers.employerId, isouter=True)
                 .join(Buildings, Buildings.buildingId == Employers.buildingId, isouter=True)
-                .join(edu_agg, edu_agg.c.employerId == Employers.employerId, isouter=True)
                 .group_by(
                     Employers.employerId,
                     Employers.location,
                     Employers.buildingId,
                     Buildings.location,
-                    edu_agg.c.educationMix,
                 )
                 .order_by(Employers.employerId)
             )
@@ -206,7 +181,6 @@ class EmployerService:
                     avg_hourly_rate,
                     wage_variance,
                     avg_shift_hours,
-                    education_mix,
                 ) = row
 
                 point = EmployerService.parse_wkt_point(employer_location)
@@ -216,11 +190,6 @@ class EmployerService:
 
                 if point is None:
                     continue
-
-                edu_mix = education_mix or {}
-                dominant_education = "Unknown"
-                if isinstance(edu_mix, dict) and edu_mix:
-                    dominant_education = max(edu_mix.items(), key=lambda item: item[1])[0]
 
                 data.append({
                     "employerId": employer_id,
@@ -232,8 +201,6 @@ class EmployerService:
                     } if rings else None,
                     "jobCount": int(job_count or 0),
                     "avgHourlyRate": float(avg_hourly_rate or 0),
-                    "dominantEducation": dominant_education,
-                    "educationMix": edu_mix,
                     "wageVariance": float(wage_variance or 0),
                     "avgShiftHours": float(avg_shift_hours or 0),
                 })
