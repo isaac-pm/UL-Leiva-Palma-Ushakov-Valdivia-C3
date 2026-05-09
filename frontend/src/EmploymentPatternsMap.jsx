@@ -333,13 +333,25 @@ const EmploymentPatternsMap = () => {
                 <p className="font-semibold text-foreground">Legend</p>
                 <div className="mt-2 flex flex-col gap-2">
                   <span className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-orange-500" /> Commercial
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: '#1A56DB' }} /> Residential
                   </span>
                   <span className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-blue-500" /> Residential
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: '#7EA8F8' }} /> Apartment
                   </span>
                   <span className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500" /> School
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: '#9333EA' }} /> Employer
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: '#581C87' }} /> Commercial
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: '#DB2777' }} /> Pub
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: '#0891B2' }} /> Restaurant
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: '#111827' }} /> School
                   </span>
                 </div>
               </div>

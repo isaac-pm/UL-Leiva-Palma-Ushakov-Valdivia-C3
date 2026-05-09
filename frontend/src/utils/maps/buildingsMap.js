@@ -1,14 +1,18 @@
 import * as d3 from 'd3';
 
 const DEFAULT_COLORS = {
-  Commercial: '#f97316',
-  Residential: '#2563eb',
-  Residental: '#2563eb',
-  School: '#16a34a',
+  Apartment: '#7EA8F8',
+  Commercial: '#581C87',
+  Employer: '#9333EA',
+  Pub: '#DB2777',
+  Residential: '#1A56DB',
+  Residental: '#1A56DB',
+  Restaurant: '#0891B2',
+  School: '#111827',
   Unknown: '#6b7280',
 };
 
-const SELECTED_STROKE = '#fef3c7';
+const SELECTED_STROKE = '#8b5cf6';
 const DEFAULT_STROKE = '#111827';
 
 const HEX_RADIUS_DEFAULT = 20;
@@ -290,7 +294,7 @@ export default class BuildingsMapD3 {
 
     const merged = polygonEnter.merge(polygonSelection);
     merged
-      .attr('fill', 'none')
+      .attr('fill', 'transparent')
       .attr('stroke', (d) => DEFAULT_COLORS[d.type] || DEFAULT_COLORS.Unknown)
       .attr('stroke-width', (d) => this.getZoomStrokeWidth(d))
       .attr('d', pathBuilder);
@@ -419,7 +423,7 @@ export default class BuildingsMapD3 {
 
     if (!wageSpecific && !stabSpecific) {
       this.buildingsLayer.selectAll('path.building-polygon')
-        .attr('fill', 'none')
+        .attr('fill', 'transparent')
         .attr('stroke', (d) => DEFAULT_COLORS[d.type] || DEFAULT_COLORS.Unknown)
         .attr('stroke-width', (d) => this.getZoomStrokeWidth(d));
       return;
