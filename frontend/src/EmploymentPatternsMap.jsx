@@ -31,20 +31,19 @@ const EmploymentPatternsMap = () => {
   const [debouncedHexRadius, setDebouncedHexRadius] = useState(20);
   const { employers, stats, loading: empLoading, error: empError } = useEmployerMapData();
   const employerWageRef = useRef({});
+  const employerIdByBuildingRef = useRef({});
 
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedHexRadius(hexRadius), 200);
-    return () => clearTimeout(timer);
-  }, [hexRadius]);
-
-  useEffect(() => {
-    const lookup = {};
+    const wageLookup = {};
+    const idLookup = {};
     employers.forEach(e => {
       if (e.buildingId != null) {
-        lookup[e.buildingId] = e.avgHourlyRate;
+        wageLookup[e.buildingId] = e.avgHourlyRate;
+        idLookup[e.buildingId] = e.employerId;
       }
     });
-    employerWageRef.current = lookup;
+    employerWageRef.current = wageLookup;
+    employerIdByBuildingRef.current = idLookup;
   }, [employers]);
 
   const statsSummary = useMemo(() => {
@@ -113,10 +112,12 @@ const EmploymentPatternsMap = () => {
         }
         const rect = containerRef.current.getBoundingClientRect();
         const wage = employerWageRef.current[item.id];
+        const employerId = employerIdByBuildingRef.current[item.id];
         setHovered({
           id: item.id,
           type: item.type || 'Unknown',
           wage: wage != null ? wage : null,
+          employerId: employerId != null ? employerId : null,
           x: event.clientX - rect.left,
           y: event.clientY - rect.top,
         });
@@ -274,6 +275,9 @@ const EmploymentPatternsMap = () => {
             >
               <div>Building {hovered.id}</div>
               <div className="text-[10px] text-white/70">{hovered.type}</div>
+              {hovered.employerId != null && (
+                <div className="text-[10px] text-yellow-300">Employer {hovered.employerId}</div>
+              )}
               {hovered.wage != null && layerState.wageGeography && layerState.wageMode === 'specific' && (
                 <div className="text-[10px] text-yellow-300">${hovered.wage.toFixed(2)}/hr</div>
               )}
@@ -323,6 +327,9 @@ const EmploymentPatternsMap = () => {
                   <div className="mt-2 text-sm text-foreground">
                     <div>Building {selected.id}</div>
                     <div className="text-xs text-muted-foreground">{selected.type || 'Unknown'}</div>
+                    {employerIdByBuildingRef.current[selected.id] != null && (
+                      <div className="mt-1 text-xs text-yellow-600">Employer {employerIdByBuildingRef.current[selected.id]}</div>
+                    )}
                   </div>
                 ) : (
                   <p className="mt-2 text-xs">No building selected yet.</p>
