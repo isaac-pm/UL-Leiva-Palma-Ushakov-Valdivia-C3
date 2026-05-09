@@ -31,20 +31,19 @@ const EmploymentPatternsMap = () => {
   const [debouncedHexRadius, setDebouncedHexRadius] = useState(20);
   const { employers, stats, loading: empLoading, error: empError } = useEmployerMapData();
   const employerWageRef = useRef({});
+  const employerIdByBuildingRef = useRef({});
 
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedHexRadius(hexRadius), 200);
-    return () => clearTimeout(timer);
-  }, [hexRadius]);
-
-  useEffect(() => {
-    const lookup = {};
+    const wageLookup = {};
+    const idLookup = {};
     employers.forEach(e => {
       if (e.buildingId != null) {
-        lookup[e.buildingId] = e.avgHourlyRate;
+        wageLookup[e.buildingId] = e.avgHourlyRate;
+        idLookup[e.buildingId] = e.employerId;
       }
     });
-    employerWageRef.current = lookup;
+    employerWageRef.current = wageLookup;
+    employerIdByBuildingRef.current = idLookup;
   }, [employers]);
 
   const statsSummary = useMemo(() => {
@@ -113,10 +112,12 @@ const EmploymentPatternsMap = () => {
         }
         const rect = containerRef.current.getBoundingClientRect();
         const wage = employerWageRef.current[item.id];
+        const employerId = employerIdByBuildingRef.current[item.id];
         setHovered({
           id: item.id,
           type: item.type || 'Unknown',
           wage: wage != null ? wage : null,
+          employerId: employerId != null ? employerId : null,
           x: event.clientX - rect.left,
           y: event.clientY - rect.top,
         });
@@ -226,7 +227,7 @@ const EmploymentPatternsMap = () => {
   };
 
   const anyLayerActive = layerState.jobConcentration || layerState.wageGeography ||
-    layerState.educationClusters || layerState.employerStability;
+    layerState.employerStability;
 
   return (
     <div className="mx-auto w-full max-w-[90rem] px-6 py-6">
@@ -274,6 +275,9 @@ const EmploymentPatternsMap = () => {
             >
               <div>Building {hovered.id}</div>
               <div className="text-[10px] text-white/70">{hovered.type}</div>
+              {hovered.employerId != null && (
+                <div className="text-[10px] text-yellow-300">Employer {hovered.employerId}</div>
+              )}
               {hovered.wage != null && layerState.wageGeography && layerState.wageMode === 'specific' && (
                 <div className="text-[10px] text-yellow-300">${hovered.wage.toFixed(2)}/hr</div>
               )}
@@ -323,9 +327,9 @@ const EmploymentPatternsMap = () => {
                   <div className="mt-2 text-sm text-foreground">
                     <div>Building {selected.id}</div>
                     <div className="text-xs text-muted-foreground">{selected.type || 'Unknown'}</div>
-                    <div className="mt-3 text-[11px] text-muted-foreground">
-                      Polygon rings: {selected.rings?.length || 0}
-                    </div>
+                    {employerIdByBuildingRef.current[selected.id] != null && (
+                      <div className="mt-1 text-xs text-yellow-600">Employer {employerIdByBuildingRef.current[selected.id]}</div>
+                    )}
                   </div>
                 ) : (
                   <p className="mt-2 text-xs">No building selected yet.</p>
@@ -336,13 +340,25 @@ const EmploymentPatternsMap = () => {
                 <p className="font-semibold text-foreground">Legend</p>
                 <div className="mt-2 flex flex-col gap-2">
                   <span className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-orange-500" /> Commercial
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: '#1A56DB' }} /> Residential
                   </span>
                   <span className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-blue-500" /> Residential
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: '#7EA8F8' }} /> Apartment
                   </span>
                   <span className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500" /> School
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: '#9333EA' }} /> Employer
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: '#581C87' }} /> Commercial
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: '#DB2777' }} /> Pub
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: '#0891B2' }} /> Restaurant
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: '#111827' }} /> School
                   </span>
                 </div>
               </div>

@@ -1,17 +1,14 @@
 import {
   SUB_MODE_GENERAL,
   SUB_MODE_SPECIFIC,
-  EMPLOYER_EDU_COLORS,
-  EMPLOYER_EDU_LABELS,
   EMPLOYER_STABILITY_COLORS,
   EMPLOYER_STABILITY_LABELS,
 } from '../../types/employerMap';
 
 const LAYER_DEFS = [
-  { key: 'jobConcentration', label: 'Job Concentration', desc: 'Hexbin = total jobs', modes: false },
-  { key: 'wageGeography', label: 'Wage Geography', desc: 'Hexbin avg wage / Building color', modes: true },
-  { key: 'educationClusters', label: 'Education Clusters', desc: 'Hexbin = dominant education', modes: false },
-  { key: 'employerStability', label: 'Employer Stability', desc: 'Hexbin avg variance / Building color', modes: true },
+  { key: 'jobConcentration', label: 'Job Concentration', desc: 'Shaded by total job count per area', modes: false },
+  { key: 'wageGeography', label: 'Wage Geography', desc: 'Shaded by average hourly wage', modes: true },
+  { key: 'employerStability', label: 'Employer Stability', desc: 'Shaded by wage variance (stability)', modes: true },
 ];
 
 export default function LayerControlPanel({ layerState, setLayerState, stats, hexRadius, setHexRadius }) {
@@ -103,7 +100,7 @@ export default function LayerControlPanel({ layerState, setLayerState, stats, he
       {!isSpecificMode && (
         <div className="mt-3 border-t border-border/60 pt-2">
           <label className="flex items-center justify-between text-[11px] font-medium text-foreground">
-            <span>Hex Radius</span>
+            <span>Hexagon Grid Size</span>
             <span className="tabular-nums text-muted-foreground">{hexRadius}px</span>
           </label>
           <input
@@ -122,7 +119,7 @@ export default function LayerControlPanel({ layerState, setLayerState, stats, he
           {activeLayer.key === 'jobConcentration' && (
             <>
               <span className="font-medium text-foreground">Job Concentration</span>
-              <div className="mt-0.5 text-muted-foreground">Hex color = total jobs in area</div>
+              <div className="mt-0.5 text-muted-foreground">Hexagons shaded by total job count</div>
               <div className="mt-1 h-2 w-full rounded-sm"
                 style={{ background: 'linear-gradient(to right, #d73027, #ffffbf, #1a9850)' }}
               />
@@ -131,7 +128,7 @@ export default function LayerControlPanel({ layerState, setLayerState, stats, he
           {activeLayer.key === 'wageGeography' && layerState.wageMode === SUB_MODE_GENERAL && (
             <>
               <span className="font-medium text-foreground">Wage (General)</span>
-              <div className="mt-0.5 text-muted-foreground">Hex avg hourly rate</div>
+              <div className="mt-0.5 text-muted-foreground">Hexagons show the average hourly wage of jobs in that area</div>
               <div className="mt-1 h-2 w-full rounded-sm"
                 style={{ background: 'linear-gradient(to right, #d73027, #ffffbf, #1a9850)' }}
               />
@@ -146,28 +143,17 @@ export default function LayerControlPanel({ layerState, setLayerState, stats, he
           {activeLayer.key === 'wageGeography' && layerState.wageMode === SUB_MODE_SPECIFIC && (
             <>
               <span className="font-medium text-foreground">Wage (Specific)</span>
-              <div className="mt-0.5 text-muted-foreground">Building fill = linked employer wage</div>
+              <div className="mt-0.5 text-muted-foreground">Building color reflects the employer's average hourly wage</div>
               <div className="mt-1 h-2 w-full rounded-sm"
                 style={{ background: 'linear-gradient(to right, #d73027, #ffffbf, #1a9850)' }}
               />
-            </>
-          )}
-          {activeLayer.key === 'educationClusters' && (
-            <>
-              <span className="font-medium text-foreground">Education</span>
-              {Object.entries(EMPLOYER_EDU_COLORS).map(([key, color]) => (
-                <div key={key} className="mt-0.5 flex items-center gap-1.5">
-                  <span className="inline-block h-1.5 w-1.5 rounded-[2px]" style={{ backgroundColor: color }} />
-                  <span>{EMPLOYER_EDU_LABELS[key] || key}</span>
-                </div>
-              ))}
             </>
           )}
           {activeLayer.key === 'employerStability' && (
             <>
               <span className="font-medium text-foreground">Stability</span>
               <div className="mt-0.5 text-muted-foreground">
-                {layerState.stabilityMode === SUB_MODE_GENERAL ? 'Hex avg variance' : 'Building fill = employer variance'}
+                {layerState.stabilityMode === SUB_MODE_GENERAL ? 'Hexagons show wage variance — red is unstable, green is stable' : 'Building color reflects the employer\'s wage variance'}
               </div>
               {Object.entries(EMPLOYER_STABILITY_COLORS).map(([key, color]) => (
                 <div key={key} className="mt-0.5 flex items-center gap-1.5">

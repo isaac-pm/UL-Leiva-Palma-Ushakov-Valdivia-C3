@@ -1,22 +1,19 @@
 import * as d3 from 'd3';
 
 const DEFAULT_COLORS = {
-  Commercial: '#f97316',
-  Residential: '#2563eb',
-  Residental: '#2563eb',
-  School: '#16a34a',
+  Apartment: '#7EA8F8',
+  Commercial: '#581C87',
+  Employer: '#9333EA',
+  Pub: '#DB2777',
+  Residential: '#1A56DB',
+  Residental: '#1A56DB',
+  Restaurant: '#0891B2',
+  School: '#111827',
   Unknown: '#6b7280',
 };
 
-const SELECTED_STROKE = '#fef3c7';
+const SELECTED_STROKE = '#8b5cf6';
 const DEFAULT_STROKE = '#111827';
-
-const EDU_COLORS = {
-  Low: '#f97316',
-  HighSchoolOrCollege: '#f59e0b',
-  Bachelors: '#2563eb',
-  Graduate: '#a855f7',
-};
 
 const HEX_RADIUS_DEFAULT = 20;
 
@@ -297,7 +294,7 @@ export default class BuildingsMapD3 {
 
     const merged = polygonEnter.merge(polygonSelection);
     merged
-      .attr('fill', 'none')
+      .attr('fill', 'transparent')
       .attr('stroke', (d) => DEFAULT_COLORS[d.type] || DEFAULT_COLORS.Unknown)
       .attr('stroke-width', (d) => this.getZoomStrokeWidth(d))
       .attr('d', pathBuilder);
@@ -330,7 +327,7 @@ export default class BuildingsMapD3 {
   updateHexbin(employers, layerState, stats, callbacks = {}, hexRadius = HEX_RADIUS_DEFAULT) {
     if (!this.hexbinLayer || !this.mapPoint) return;
 
-    const activeLayer = ['jobConcentration', 'wageGeography', 'educationClusters', 'employerStability']
+    const activeLayer = ['jobConcentration', 'wageGeography', 'employerStability']
       .find(k => layerState[k]);
 
     if (!activeLayer) {
@@ -369,17 +366,6 @@ export default class BuildingsMapD3 {
       });
       const [minV, maxV] = d3.extent(bins.map(b => b.value)) || [0, 1];
       colorFn = d3.scaleSequential([Math.max(0, minV), Math.max(maxV, 1)], d3.interpolateRdYlGn);
-    } else if (activeLayer === 'educationClusters') {
-      bins.forEach(b => {
-        const counts = {};
-        b.members.forEach(m => {
-          Object.entries(m.educationMix || {}).forEach(([edu, c]) => {
-            counts[edu] = (counts[edu] || 0) + c;
-          });
-        });
-        const entries = Object.entries(counts);
-        b.value = entries.length > 0 ? entries.sort((a, b1) => b1[1] - a[1])[0][0] : 'Unknown';
-      });
     } else if (activeLayer === 'employerStability') {
       bins.forEach(b => {
         const valid = b.members.map(m => m.wageVariance).filter(v => Number.isFinite(v));
@@ -424,9 +410,6 @@ export default class BuildingsMapD3 {
       .attr('stroke-opacity', d => d.members.length === 0 ? 0.5 : 0.8)
       .attr('fill', d => {
         if (d.members.length === 0) return 'none';
-        if (activeLayer === 'educationClusters') {
-          return EDU_COLORS[d.value] || '#9ca3af';
-        }
         return colorFn(d.value);
       })
       .attr('fill-opacity', d => d.members.length === 0 ? 0 : 0.7);
@@ -440,7 +423,7 @@ export default class BuildingsMapD3 {
 
     if (!wageSpecific && !stabSpecific) {
       this.buildingsLayer.selectAll('path.building-polygon')
-        .attr('fill', 'none')
+        .attr('fill', 'transparent')
         .attr('stroke', (d) => DEFAULT_COLORS[d.type] || DEFAULT_COLORS.Unknown)
         .attr('stroke-width', (d) => this.getZoomStrokeWidth(d));
       return;

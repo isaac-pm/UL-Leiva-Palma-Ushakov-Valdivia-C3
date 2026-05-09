@@ -1,11 +1,7 @@
-import { useEffect, useRef, useMemo } from 'react';
-import * as d3 from 'd3';
+import { useMemo } from 'react';
 import {
-  EMPLOYER_EDU_COLORS,
-  EMPLOYER_EDU_LABELS,
   EMPLOYER_STABILITY_COLORS,
   EMPLOYER_STABILITY_LABELS,
-  EMPLOYER_WAGE_GRADIENT,
 } from '../../types/employerMap';
 
 const formatNumber = (value) => {
@@ -24,76 +20,6 @@ const stabilityLevel = (value, thresholds) => {
   if (value <= t2) return 'moderate';
   return 'unstable';
 };
-
-function EducationBarChart({ jobs }) {
-  const ref = useRef(null);
-
-  const counts = useMemo(() => {
-    const map = {};
-    for (const job of jobs) {
-      const edu = job.educationRequirement || 'Unknown';
-      map[edu] = (map[edu] || 0) + 1;
-    }
-    return Object.entries(map)
-      .sort((a, b) => b[1] - a[1]);
-  }, [jobs]);
-
-  useEffect(() => {
-    if (!ref.current || counts.length === 0) return;
-
-    const svg = d3.select(ref.current);
-    svg.selectAll('*').remove();
-
-    const width = ref.current.clientWidth || 240;
-    const height = counts.length * 22 + 8;
-    const barHeight = 16;
-    const maxCount = Math.max(...counts.map(([, c]) => c), 1);
-
-    svg.attr('viewBox', `0 0 ${width} ${height}`);
-
-    counts.forEach(([edu, count], i) => {
-      const y = i * 22;
-      const barW = (count / maxCount) * (width - 80);
-
-      svg.append('text')
-        .attr('x', 0)
-        .attr('y', y + barHeight / 2 + 1)
-        .attr('font-size', '10')
-        .attr('fill', 'var(--muted-foreground)')
-        .text(EMPLOYER_EDU_LABELS[edu] || edu);
-
-      svg.append('rect')
-        .attr('x', 80)
-        .attr('y', y)
-        .attr('width', 0)
-        .attr('height', barHeight)
-        .attr('rx', 3)
-        .attr('fill', EMPLOYER_EDU_COLORS[edu] || '#9ca3af')
-        .transition()
-        .duration(400)
-        .attr('width', Math.max(barW, 4));
-
-      svg.append('text')
-        .attr('x', 80 + Math.max(barW, 4) + 4)
-        .attr('y', y + barHeight / 2 + 1)
-        .attr('font-size', '10')
-        .attr('fill', 'var(--foreground)')
-        .text(count);
-    });
-  }, [counts]);
-
-  if (counts.length === 0) {
-    return <p className="text-[11px] text-muted-foreground">No education data.</p>;
-  }
-
-  return (
-    <svg
-      ref={ref}
-      className="w-full"
-      style={{ height: counts.length * 22 + 8 }}
-    />
-  );
-}
 
 function StatRow({ label, value, color }) {
   return (
@@ -198,14 +124,6 @@ export default function EmployerDetailPanel({ detail, loading, employerId, onClo
           </div>
         </div>
 
-        <div className="rounded-lg bg-card/80 p-2.5">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-            Education Mix
-          </p>
-          <div className="mt-1.5">
-            <EducationBarChart jobs={jobs} />
-          </div>
-        </div>
       </div>
     </aside>
   );

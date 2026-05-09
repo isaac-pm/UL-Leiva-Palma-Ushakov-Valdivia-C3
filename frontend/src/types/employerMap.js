@@ -4,27 +4,12 @@ export const SUB_MODE_SPECIFIC = 'specific';
 export const DEFAULT_LAYER_STATE = {
   jobConcentration: false,
   wageGeography: false,
-  educationClusters: false,
   employerStability: false,
   wageMode: SUB_MODE_GENERAL,
   stabilityMode: SUB_MODE_GENERAL,
 };
 
 export const EMPLOYER_WAGE_GRADIENT = ['#d73027', '#1a9850'];
-
-export const EMPLOYER_EDU_COLORS = {
-  Low: '#f97316',
-  HighSchoolOrCollege: '#f59e0b',
-  Bachelors: '#2563eb',
-  Graduate: '#a855f7',
-};
-
-export const EMPLOYER_EDU_LABELS = {
-  Low: 'Low',
-  HighSchoolOrCollege: 'High School',
-  Bachelors: 'Bachelors',
-  Graduate: 'Graduate',
-};
 
 export const EMPLOYER_STABILITY_COLORS = {
   stable: '#22c55e',

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Provider } from 'react-redux';
 import MobilitySocialAnalytics from './MobilitySocialAnalytics';
 import EmploymentPatternsMap from './EmploymentPatternsMap';
+import WorkforceLifecycle from './WorkforceLifecycle';
 import AnalysisHeader from './components/AnalysisHeader';
 import { store } from './store';
 
@@ -21,6 +22,10 @@ const tabs = [
   {
     id: 'mobility-social',
     label: 'Mobility and Social Network Analysis',
+  },
+  {
+    id: 'workforce-lifecycle',
+    label: 'Workforce Dynamics Lifecycle',
   },
 ];
 
@@ -119,6 +124,9 @@ function App() {
             </section>
             <section hidden={activeTab !== 'mobility-social'}>
               <MobilitySocialAnalytics />
+            </section>
+            <section hidden={activeTab !== 'workforce-lifecycle'}>
+              <WorkforceLifecycle />
             </section>
           </div>
         </main>
