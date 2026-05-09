@@ -21,7 +21,8 @@ from api.routers import (
     travel_router,
     activity_router,
     social_network_analytics_router,
-    buildings_map_router
+    buildings_map_router,
+    workforce_router,
 )
 
 tprint("Pura vida \n harni tsytsky!",font="art")
@@ -63,6 +64,7 @@ app.include_router(travel_router, prefix="/api")
 app.include_router(activity_router, prefix="/api")
 
 app.include_router(social_network_analytics_router, prefix="/api")
+app.include_router(workforce_router, prefix="/api")
 
 
 @app.get("/api/message")

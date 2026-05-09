@@ -11,6 +11,7 @@ from api.routers.travel import router as travel_router
 from api.routers.activity import router as activity_router
 from api.routers.social_network_analytics import router as social_network_analytics_router 
 from api.routers.buildings_map import router as buildings_map_router
+from api.routers.workforce import router as workforce_router
 
 __all__ = [
     "participants_router",
@@ -25,5 +26,6 @@ __all__ = [
     "travel_router",
     "activity_router",
     "social_network_analytics_router",
-    "buildings_map_router"
+    "buildings_map_router",
+    "workforce_router"
 ]
