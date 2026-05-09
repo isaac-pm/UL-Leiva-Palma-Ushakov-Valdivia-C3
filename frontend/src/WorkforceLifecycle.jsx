@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import WorkforceMatrixChart from './utils/d3/WorkforceMatrixChart';
 import { customfetch } from './utils/api';
 import AnalysisHeader from './components/AnalysisHeader';
@@ -21,6 +21,19 @@ const WorkforceLifecycle = () => {
   const [visibleSectors, setVisibleSectors] = useState(new Set());
   const [volatilityRange, setVolatilityRange] = useState([0, 2]);
   const [maxVolatility, setMaxVolatility] = useState(2);
+  const volatilityTimerRef = useRef(null);
+  const setVolatilityMin = useCallback((v) => {
+    clearTimeout(volatilityTimerRef.current);
+    volatilityTimerRef.current = setTimeout(() => {
+      setVolatilityRange(prev => [Math.min(v, prev[1]), prev[1]]);
+    }, 40);
+  }, []);
+  const setVolatilityMax = useCallback((v) => {
+    clearTimeout(volatilityTimerRef.current);
+    volatilityTimerRef.current = setTimeout(() => {
+      setVolatilityRange(prev => [prev[0], Math.max(v, prev[0])]);
+    }, 40);
+  }, []);
   const [cellMetric, setCellMetric] = useState('headcount');
   const [sortBy, setSortBy] = useState('avgHeadcount');
 
@@ -118,14 +131,6 @@ const WorkforceLifecycle = () => {
     });
   };
 
-  const selectAllSectors = () => {
-    if (data?.sectors) setVisibleSectors(new Set(data.sectors));
-  };
-
-  const clearAllSectors = () => {
-    setVisibleSectors(new Set());
-  };
-
   const sectors = data?.sectors || [];
   const aggregates = data?.aggregates || {};
 
@@ -159,50 +164,28 @@ const WorkforceLifecycle = () => {
             <h3 className="text-base font-semibold text-foreground mb-2">Controls</h3>
 
             <div className="mb-4">
-              <div className="flex justify-between items-center mb-1">
+              <div className="flex items-center mb-1">
                 <span className="text-xs font-medium text-foreground">Sectors</span>
-                <div className="flex gap-1">
-                  <button
-                    onClick={selectAllSectors}
-                    className="text-[10px] px-2 py-0.5 rounded border border-border/60 hover:bg-accent/10 text-muted-foreground"
-                  >
-                    All
-                  </button>
-                  <button
-                    onClick={clearAllSectors}
-                    className="text-[10px] px-2 py-0.5 rounded border border-border/60 hover:bg-accent/10 text-muted-foreground"
-                  >
-                    None
-                  </button>
-                </div>
               </div>
               <div className="flex flex-col gap-1">
                 {sectors.map((s) => (
-                  <div key={s} className="flex items-center gap-1">
-                    <label
-                      className="flex flex-1 items-center gap-2 cursor-pointer py-0.5 rounded hover:bg-accent/5"
-                      onClick={() => toggleSector(s)}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={visibleSectors.has(s)}
-                        readOnly
-                        className="rounded"
-                      />
-                      <span
-                        className="inline-block w-2.5 h-2.5 rounded-sm shrink-0"
-                        style={{ backgroundColor: SECTOR_COLORS[s] || '#6b7280' }}
-                      />
-                      <span className="text-xs text-foreground truncate">{s}</span>
-                    </label>
-                    <button
-                      onClick={() => setVisibleSectors(new Set([s]))}
-                      className="text-[10px] px-1.5 py-0.5 rounded border border-border/40 text-muted-foreground hover:bg-accent/10 hover:text-foreground shrink-0"
-                      title={`Show only ${s}`}
-                    >
-                      solo
-                    </button>
-                  </div>
+                  <label
+                    key={s}
+                    className="flex items-center gap-2 cursor-pointer py-0.5 rounded hover:bg-accent/5"
+                    onClick={() => toggleSector(s)}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={visibleSectors.has(s)}
+                      readOnly
+                      className="rounded"
+                    />
+                    <span
+                      className="inline-block w-2.5 h-2.5 rounded-sm shrink-0"
+                      style={{ backgroundColor: SECTOR_COLORS[s] || '#6b7280' }}
+                    />
+                    <span className="text-xs text-foreground truncate">{s}</span>
+                  </label>
                 ))}
               </div>
             </div>
@@ -260,10 +243,7 @@ const WorkforceLifecycle = () => {
                   max={maxVolatility || 2}
                   step={0.05}
                   value={volatilityRange[0]}
-                  onChange={(e) => {
-                    const v = parseFloat(e.target.value);
-                    setVolatilityRange(prev => [Math.min(v, prev[1]), prev[1]]);
-                  }}
+                  onChange={(e) => setVolatilityMin(parseFloat(e.target.value))}
                   className="absolute inset-0 w-full appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-600 [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:h-3.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-purple-600 [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:shadow-md [&::-moz-range-thumb]:cursor-pointer"
                 />
                 <input
@@ -272,10 +252,7 @@ const WorkforceLifecycle = () => {
                   max={maxVolatility || 2}
                   step={0.05}
                   value={volatilityRange[1]}
-                  onChange={(e) => {
-                    const v = parseFloat(e.target.value);
-                    setVolatilityRange(prev => [prev[0], Math.max(v, prev[0])]);
-                  }}
+                  onChange={(e) => setVolatilityMax(parseFloat(e.target.value))}
                   className="absolute inset-0 w-full appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-600 [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:h-3.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-purple-600 [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:shadow-md [&::-moz-range-thumb]:cursor-pointer"
                 />
               </div>
