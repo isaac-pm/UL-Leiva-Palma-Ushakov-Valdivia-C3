@@ -40,12 +40,11 @@ class SocialNetworkAnalyticsEngine:
         
         logger.info("[STAGE]  Bulk Insert")
         
-        if participants_data:
-            logger.info(f"  [STEP 1] Bulk insert for participants data: {len(participants_data)}")
-            self.session.bulk_insert_mappings(AnalyticParticipantSnapshots, participants_data)
+        # Note: participants_data is already inserted inside _compute_network_metrics
+        # to enable the travel purpose JOIN query, so we skip STEP 1 here
         
         if macro_edges_data:
-            logger.info(f"  [STEP 2] Bulk insert for MacroEdges: {len(macro_edges_data)}")
+            logger.info(f"  [STEP 1] Bulk insert for MacroEdges: {len(macro_edges_data)}")
             self.session.bulk_insert_mappings(AnalyticMacroEdges, macro_edges_data)
         
         if sankey_data:
@@ -138,55 +137,55 @@ class SocialNetworkAnalyticsEngine:
                 }
             macro_edges_dict[edge_key]["total"] += row.weight
 
-        # Step 5: Query travel journal and map purposes to cluster pairs
-        logger.info("   [STEP] 5 Map travel purposes to cluster pairs")
+        # Step 5: Compute travel purposes per cluster using direct SQL
+        # This approach joins travel_journal with participant cluster assignments
+        logger.info("   [STEP] 5 Compute travel purposes per cluster via SQL")
         
-        # If cluster_membership is empty, create a fallback cluster for all participants
-        if not cluster_membership:
-            logger.warning("   [WARNING] No cluster membership data - using default cluster 0 for all travel participants")
-            # Create a default cluster assignment for all travel participants
-            cluster_membership = {i: 0 for i in range(1, 1000)}  # Will be replaced if actual data exists
+        # First, insert participant snapshots (needed for the JOIN)
+        if participants_data:
+            self.session.bulk_insert_mappings(AnalyticParticipantSnapshots, participants_data)
+            self.session.flush()  # Flush to ensure data is available for the JOIN
         
-        # Build cluster_purposes from travel_journal, using cluster_membership
-        cluster_purposes = {}
-        
-        # First, check if we have cluster data for participants
-        participants_with_clusters = set(cluster_membership.keys())
-        logger.info(f"   [INFO] Cluster membership has {len(participants_with_clusters)} participants")
-        
-        # Query all travel data for the month
-        travel_query = text("""
-            SELECT "participantId" as participant_id, purpose, COUNT(*) as count
-            FROM travel_journal
-            WHERE "travelStartTime" >= :start_date AND "travelStartTime" < :end_date
-            GROUP BY "participantId", purpose
+        # Direct SQL to get travel purposes grouped by cluster
+        # This joins travel_journal with the just-inserted participant snapshots
+        travel_cluster_query = text("""
+            WITH cluster_mapping AS (
+                SELECT "participantId", "clusterId"
+                FROM analytic_participant_snapshots
+                WHERE "timeWindow" = :time_window
+            )
+            SELECT 
+                cm."clusterId",
+                tj.purpose,
+                COUNT(*) as travel_count
+            FROM travel_journal tj
+            INNER JOIN cluster_mapping cm ON tj."participantId" = cm."participantId"
+            WHERE tj."travelStartTime" >= :start_date AND tj."travelStartTime" < :end_date
+            GROUP BY cm."clusterId", tj.purpose
+            ORDER BY cm."clusterId", tj.purpose
         """)
         
-        travel_results = self.session.execute(travel_query, {
+        travel_cluster_results = self.session.execute(travel_cluster_query, {
+            "time_window": self.start_date,
             "start_date": self.start_date, 
             "end_date": self.end_date
         }).fetchall()
         
-        logger.info(f"   [INFO] Found {len(travel_results)} travel purpose records")
+        logger.info(f"   [INFO] Found {len(travel_cluster_results)} cluster-purpose records")
         
-        # Map travel purposes by cluster
-        for row in travel_results:
-            participant_id = row.participant_id
-            cluster = cluster_membership.get(participant_id)
-            
-            # If participant not in cluster_membership, assign to a default cluster based on participantId modulo
-            if cluster is None:
-                # Use participantId modulo as fallback cluster
-                cluster = participant_id % 50  # Distribute across 50 clusters
-                logger.debug(f"   [DEBUG] Participant {participant_id} not in social network, assigned to cluster {cluster}")
-            
-            if cluster not in cluster_purposes:
-                cluster_purposes[cluster] = {}
+        # Build cluster_purposes from direct SQL results
+        cluster_purposes = {}
+        for row in travel_cluster_results:
+            cluster_id = row.clusterId
             purpose = row.purpose
-            cluster_purposes[cluster][purpose] = cluster_purposes[cluster].get(purpose, 0) + row.count
+            count = row.travel_count
+            
+            if cluster_id not in cluster_purposes:
+                cluster_purposes[cluster_id] = {}
+            cluster_purposes[cluster_id][purpose] = count
         
         logger.info(f"   [INFO] Cluster purposes populated for {len(cluster_purposes)} clusters")
-
+        
         # Add travel purposes to macro_edges based on BOTH source AND target clusters
         for edge_key, edge_data in macro_edges_dict.items():
             src_cluster = edge_key[0]
@@ -195,11 +194,11 @@ class SocialNetworkAnalyticsEngine:
             src_purposes = cluster_purposes.get(src_cluster, {})
             tgt_purposes = cluster_purposes.get(tgt_cluster, {})
             
-            edge_data["commute"] = src_purposes.get("Work/Home Commute", 0) + tgt_purposes.get("Work/Home Commute", 0)
-            edge_data["recreation"] = src_purposes.get("Recreation (Social Gathering)", 0) + tgt_purposes.get("Recreation (Social Gathering)", 0)
-            edge_data["eating"] = src_purposes.get("Eating", 0) + tgt_purposes.get("Eating", 0)
-            edge_data["goingHome"] = src_purposes.get("Going Back to Home", 0) + tgt_purposes.get("Going Back to Home", 0)
-            edge_data["returningFromRestaurant"] = src_purposes.get("Coming Back From Restaurant", 0) + tgt_purposes.get("Coming Back From Restaurant", 0)
+            edge_data["commute"] = src_purposes.get("WORK_HOME_COMMUTE", 0) + tgt_purposes.get("WORK_HOME_COMMUTE", 0)
+            edge_data["recreation"] = src_purposes.get("RECREATION", 0) + tgt_purposes.get("RECREATION", 0)
+            edge_data["eating"] = src_purposes.get("EATING", 0) + tgt_purposes.get("EATING", 0)
+            edge_data["goingHome"] = src_purposes.get("GOING_BACK_TO_HOME", 0) + tgt_purposes.get("GOING_BACK_TO_HOME", 0)
+            edge_data["returningFromRestaurant"] = src_purposes.get("COMING_BACK_FROM_RESTAURANT", 0) + tgt_purposes.get("COMING_BACK_FROM_RESTAURANT", 0)
 
         macro_edges_data = [
             {
