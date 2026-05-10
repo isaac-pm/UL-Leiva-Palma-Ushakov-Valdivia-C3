@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import SankeyD3 from '../utils/d3/SankeyD3';
 import { setHighlightedGroup } from '../store/sankeySlice';
@@ -8,6 +8,7 @@ const SankeyDiagram = ({ width = 1000, height = 400 }) => {
   const containerRef = useRef(null);
   const sankeyD3Ref = useRef(null);
   const hasInitialized = useRef(false);
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
   const { nodes, links, loading } = useSelector((state) => state.sankey);
   const { selectedNodeId } = useSelector((state) => state.graph);
@@ -40,7 +41,9 @@ const SankeyDiagram = ({ width = 1000, height = 400 }) => {
       },
     });
 
-    sankeyD3.create({ size: getChartSize() });
+    const chartSize = getChartSize();
+    sankeyD3.create({ size: chartSize });
+    setDimensions({ width: chartSize.width, height: chartSize.height });
     sankeyD3Ref.current = sankeyD3;
     hasInitialized.current = true;
 
@@ -49,6 +52,35 @@ const SankeyDiagram = ({ width = 1000, height = 400 }) => {
       hasInitialized.current = false;
     };
   }, []);
+
+  // Resize handler to update chart dimensions when container size changes
+  useEffect(() => {
+    if (!containerRef.current || !sankeyD3Ref.current) return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const newWidth = entry.contentRect.width;
+        const newHeight = entry.contentRect.height;
+        
+        if (newWidth !== dimensions.width || newHeight !== dimensions.height) {
+          const newSize = getChartSize();
+          setDimensions({ width: newSize.width, height: newSize.height });
+          
+          // Recreate with new dimensions
+          sankeyD3Ref.current.create({ size: newSize });
+          if (nodes.length > 0 && links.length > 0) {
+            sankeyD3Ref.current.update({ nodes, links });
+          }
+        }
+      }
+    });
+
+    resizeObserver.observe(containerRef.current);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [nodes, links, dimensions.width, dimensions.height, getChartSize]);
 
   useEffect(() => {
     const sankeyD3 = sankeyD3Ref.current;

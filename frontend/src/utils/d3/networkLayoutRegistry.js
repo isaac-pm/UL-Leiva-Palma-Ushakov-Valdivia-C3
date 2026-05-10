@@ -18,6 +18,7 @@ const LAYOUT_REGISTRY = {
                 selectedOpacity,
                 selectedId,
                 getClusterColor,
+                getNodeSize,
             } = options;
 
             if (!nodes.length) {
@@ -40,7 +41,7 @@ const LAYOUT_REGISTRY = {
             const simulationNodes = nodes.map((node, i) => ({
                 ...node,
                 index: i,
-                totalWeight: nodeWeights[node.id] || 0,
+                totalWeight: nodeWeights[node.id] || node.totalInteractions || 0,
                 x: Math.random() * width * 0.8 + width * 0.1,  // Spread across 80% of canvas
                 y: Math.random() * height * 0.8 + height * 0.1,
             }));
@@ -54,6 +55,8 @@ const LAYOUT_REGISTRY = {
 
             console.log('[NetworkLayout] Link force setup:', simulationLinks.slice(0, 3).map(l => `${l.source}->${l.target}`));
 
+            const nodeSizeFn = getNodeSize || (d => 6 + Math.min(12, (d.totalWeight || 0) / 800));
+
             const simulation = d3.forceSimulation(simulationNodes)
                 .force('link', d3.forceLink(simulationLinks)
                     .id(d => d.id)
@@ -62,7 +65,7 @@ const LAYOUT_REGISTRY = {
                 )
                 .force('charge', d3.forceManyBody().strength(-700))
                 .force('center', d3.forceCenter(width / 2, height / 2).strength(0.05))
-                .force('collision', d3.forceCollide().radius(d => 8 + Math.min(10, (d.totalWeight || 0) / 500)));
+                .force('collision', d3.forceCollide().radius(d => nodeSizeFn(d) * 1.2));
 
             simulation.stop();
             for (let i = 0; i < 300; i++) {
@@ -142,13 +145,14 @@ const LAYOUT_REGISTRY = {
             // Render nodes SECOND (foreground) - so they appear on top of links
             const nodeG = svg.append('g').attr('class', 'nodeG');
 
+
             const nodesSelection = nodeG.selectAll('.node-circle')
                 .data(simulationNodes, d => d.id)
                 .join(
                     enter => enter.append('circle')
                         .attr('class', 'node-circle')
                         .attr('r', 0)  // Start at 0 for animation
-                        .attr('fill', d => getClusterColor(d.clusterId))
+                        .attr('fill', d => getClusterColor(d))
                         .attr('stroke', '#fff')
                         .attr('stroke-width', 1.5)
                         .attr('cx', d => d.x)
@@ -170,12 +174,12 @@ const LAYOUT_REGISTRY = {
                         // Then apply transition
                         .transition()
                         .duration(400)
-                        .attr('r', d => 6 + Math.min(12, (d.totalWeight || 0) / 800))
+                        .attr('r', d => nodeSizeFn(d))
                         .style('opacity', defaultOpacity),
                     update => update
                         .transition()
                         .duration(300)
-                        .attr('r', d => 6 + Math.min(12, (d.totalWeight || 0) / 800)),
+                        .attr('r', d => nodeSizeFn(d)),
                     exit => exit
                         .transition()
                         .duration(200)
@@ -211,14 +215,15 @@ const LAYOUT_REGISTRY = {
             }
 
             if (selectedId) {
+                const nodeSizeFn = getNodeSize || (d => 6 + Math.min(12, (d.totalWeight || 0) / 800));
                 svg.selectAll('.node-circle')
                     .transition()
                     .duration(200)
                     .attr('stroke', d => d.id === selectedId ? '#fff' : '#fff')
                     .attr('stroke-width', d => d.id === selectedId ? 3 : 1.5)
                     .attr('r', d => d.id === selectedId 
-                        ? 6 + Math.min(12, (d.totalWeight || 0) / 800) + 4  // Make selected node bigger
-                        : 6 + Math.min(12, (d.totalWeight || 0) / 800))
+                        ? nodeSizeFn(d) + 4  // Make selected node bigger
+                        : nodeSizeFn(d))
                     .style('opacity', d => d.id === selectedId ? selectedOpacity : defaultOpacity);
             }
         }

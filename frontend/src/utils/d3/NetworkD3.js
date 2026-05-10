@@ -11,8 +11,24 @@ const CLUSTER_COLORS = {
     9: '#d97706',
 };
 
+const TRAVEL_PURPOSE_COLORS = {
+    'commute': '#3b82f6',
+    'recreation': '#10b981',
+    'eating': '#f59e0b',
+    'goingHome': '#8b5cf6',
+    'returningFromRestaurant': '#ef4444'
+};
+
+const TRAVEL_PURPOSE_LABELS = {
+    'commute': 'Work/Home Commute',
+    'recreation': 'Recreation',
+    'eating': 'Eating',
+    'goingHome': 'Going Home',
+    'returningFromRestaurant': 'Returning from Restaurant'
+};
+
 class NetworkD3 {
-    margin = { top: 20, right: 90, bottom: 20, left: 90 };
+    margin = { top: 20, right: 20, bottom: 20, left: 20 };
     size;
     height;
     width;
@@ -95,12 +111,14 @@ class NetworkD3 {
         
         const clusterId = node.clusterId ?? String(node.id)?.replace('cluster_', '') ?? 'Unknown';
         const category = node.category || 'Cluster';
-        const interactionCount = node.interactionCount || node.totalWeight || this.getLinkWeight(node.id) || 'N/A';
+        const interactionCount = node.interactionCount || node.totalWeight || node.totalInteractions || this.getLinkWeight(node.id) || 'N/A';
+        const dominantTravel = node.dominantTravelPurpose || 'commute';
+        const travelLabel = TRAVEL_PURPOSE_LABELS[dominantTravel] || 'Work/Home Commute';
 
         const lines = [
             `Cluster: ${clusterId}`,
-            `Category: ${category}`,
-            `Interactions: ${typeof interactionCount === 'number' ? interactionCount.toLocaleString() : interactionCount}`,
+            `Dominant Travel: ${travelLabel}`,
+            `Total Interactions: ${typeof interactionCount === 'number' ? interactionCount.toLocaleString() : interactionCount}`,
         ];
 
         // Use event pointer coordinates (in screen space, not zoomed space)
@@ -219,7 +237,16 @@ class NetworkD3 {
             defaultOpacity: this.defaultOpacity,
             selectedOpacity: this.selectedOpacity,
             selectedId: this.currentSelectedId,
-            getClusterColor: (id) => CLUSTER_COLORS[id] || '#94a3b8',
+            getClusterColor: (node) => {
+                if (node && node.dominantTravelPurpose) {
+                    return TRAVEL_PURPOSE_COLORS[node.dominantTravelPurpose] || '#94a3b8';
+                }
+                return CLUSTER_COLORS[node?.clusterId] || '#94a3b8';
+            },
+            getNodeSize: (node) => {
+                const totalInteractions = node?.totalInteractions || node?.totalWeight || 1;
+                return 8 + Math.min(32, totalInteractions / 300);
+            }
         });
 
         // Center view on new data - reset zoom transform

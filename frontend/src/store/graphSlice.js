@@ -69,9 +69,30 @@ const graphSlice = createSlice({
         const nodesArray = new Array(maxClusterId + 1).fill(null);
         const linksArray = [];
         
+        const clusterTravelCounts = {};
+        
         payloadData.forEach(item => {
           const sourceId = item.sourceClusterId;
           const targetId = item.targetClusterId;
+          
+          const purposes = [
+            'commuteInteractions', 
+            'recreationInteractions', 
+            'eatingInteractions', 
+            'goingHomeInteractions', 
+            'returningFromRestaurantInteractions'
+          ];
+          
+          purposes.forEach(p => {
+            const count = item[p] || 0;
+            if (!clusterTravelCounts[sourceId]) clusterTravelCounts[sourceId] = {};
+            clusterTravelCounts[sourceId][p] = 
+              (clusterTravelCounts[sourceId][p] || 0) + count;
+              
+            if (!clusterTravelCounts[targetId]) clusterTravelCounts[targetId] = {};
+            clusterTravelCounts[targetId][p] = 
+              (clusterTravelCounts[targetId][p] || 0) + count;
+          });
           
           // Create node if doesn't exist
           if (!nodesArray[sourceId]) {
@@ -96,6 +117,33 @@ const graphSlice = createSlice({
               target: targetId,
               weight: item.interactionCount || 1,
             });
+          }
+        });
+        
+        const clusterDominantPurpose = {};
+        const clusterTotalInteractions = {};
+        
+        const purposeMap = {
+          'commuteInteractions': 'commute',
+          'recreationInteractions': 'recreation',
+          'eatingInteractions': 'eating',
+          'goingHomeInteractions': 'goingHome',
+          'returningFromRestaurantInteractions': 'returningFromRestaurant'
+        };
+        
+        Object.keys(clusterTravelCounts).forEach(clusterId => {
+          const purposes = clusterTravelCounts[clusterId];
+          const totalInteractions = Object.values(purposes).reduce((a, b) => a + b, 0);
+          const dominant = Object.entries(purposes).sort((a, b) => b[1] - a[1])[0];
+          
+          clusterDominantPurpose[clusterId] = purposeMap[dominant[0]] || 'commute';
+          clusterTotalInteractions[clusterId] = totalInteractions;
+        });
+        
+        nodesArray.forEach(node => {
+          if (node) {
+            node.dominantTravelPurpose = clusterDominantPurpose[node.clusterId] || 'commute';
+            node.totalInteractions = clusterTotalInteractions[node.clusterId] || 1;
           }
         });
         

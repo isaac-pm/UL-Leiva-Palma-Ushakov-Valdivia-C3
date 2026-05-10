@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import NetworkD3 from '../utils/d3/NetworkD3';
 import { setSelectedNodeId, setHoveredClusterId } from '../store/graphSlice';
@@ -9,6 +9,7 @@ const NetworkGraph = ({ width = 500, height = 400 }) => {
   const containerRef = useRef(null);
   const networkD3Ref = useRef(null);
   const hasInitialized = useRef(false);
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
   const { nodes, links, loading, selectedNodeId, hoveredClusterId } = useSelector((state) => state.graph);
 
@@ -43,7 +44,9 @@ const NetworkGraph = ({ width = 500, height = 400 }) => {
       },
     });
 
-    networkD3.create({ size: getChartSize() });
+    const chartSize = getChartSize();
+    networkD3.create({ size: chartSize });
+    setDimensions(chartSize);
     networkD3Ref.current = networkD3;
     hasInitialized.current = true;
 
@@ -52,6 +55,35 @@ const NetworkGraph = ({ width = 500, height = 400 }) => {
       hasInitialized.current = false;
     };
   }, []);
+
+  // Resize handler to update chart dimensions when container size changes
+  useEffect(() => {
+    if (!containerRef.current || !networkD3Ref.current) return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const newWidth = entry.contentRect.width;
+        const newHeight = entry.contentRect.height;
+        
+        if (newWidth !== dimensions.width || newHeight !== dimensions.height) {
+          const newSize = getChartSize();
+          setDimensions({ width: newSize.width, height: newSize.height });
+          
+          // Recreate with new dimensions
+          networkD3Ref.current.create({ size: newSize });
+          if (nodes.length > 0) {
+            networkD3Ref.current.update({ nodes, links });
+          }
+        }
+      }
+    });
+
+    resizeObserver.observe(containerRef.current);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [nodes, links, dimensions.width, dimensions.height, getChartSize]);
 
   useEffect(() => {
     const networkD3 = networkD3Ref.current;
@@ -77,15 +109,21 @@ const NetworkGraph = ({ width = 500, height = 400 }) => {
     }
   }, [hoveredClusterId]);
 
-  const clusterLabels = {
-    0: 'Urban',
-    3: 'Suburban A',
-    4: 'Suburban B',
-    5: 'Rural',
-    6: 'Peri-urban',
-    7: 'Mixed',
-    9: 'Industrial',
-  };
+  const travelPurposeLabels = {
+    commute: 'Work/Home Commute',
+    recreation: 'Recreation',
+    eating: 'Eating',
+    goingHome: 'Going Home',
+    returningFromRestaurant: 'Returning from Restaurant',
+};
+
+const travelPurposeColors = {
+    commute: '#3b82f6',
+    recreation: '#10b981',
+    eating: '#f59e0b',
+    goingHome: '#8b5cf6',
+    returningFromRestaurant: '#ef4444',
+};
 
   return (
     <div className="relative bg-card rounded-lg p-4 shadow-md">
@@ -108,19 +146,19 @@ const NetworkGraph = ({ width = 500, height = 400 }) => {
       />
 
       <div className="mt-4 flex flex-wrap gap-2 text-xs">
-        {Object.entries(clusterLabels).map(([id, label]) => (
+        {Object.entries(travelPurposeLabels).map(([id, label]) => (
           <span
             key={id}
             className="px-2 py-1 rounded-full flex items-center gap-1"
             style={{
-              backgroundColor: `hsl(${(parseInt(id) * 45) % 360}, 70%, 90%)`,
-              color: `hsl(${(parseInt(id) * 45) % 360}, 70%, 30%)`,
+              backgroundColor: `${travelPurposeColors[id]}20`,
+              color: travelPurposeColors[id],
             }}
           >
             <span
               className="w-2 h-2 rounded-full"
               style={{
-                backgroundColor: `hsl(${(parseInt(id) * 45) % 360}, 70%, 40%)`,
+                backgroundColor: travelPurposeColors[id],
               }}
             />
             {label}

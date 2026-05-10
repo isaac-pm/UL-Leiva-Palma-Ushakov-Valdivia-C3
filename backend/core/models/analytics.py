@@ -30,6 +30,12 @@ class AnalyticMacroEdges(SQLModel, table=True):
     sourceClusterId: int = Field(index=True)
     targetClusterId: int = Field(index=True)
     interactionCount: int = Field(default=0)
+    
+    commuteInteractions: int = Field(default=0)
+    recreationInteractions: int = Field(default=0)
+    eatingInteractions: int = Field(default=0)
+    goingHomeInteractions: int = Field(default=0)
+    returningFromRestaurantInteractions: int = Field(default=0)
 
 
 class AnalyticSankeyFlows(SQLModel, table=True):

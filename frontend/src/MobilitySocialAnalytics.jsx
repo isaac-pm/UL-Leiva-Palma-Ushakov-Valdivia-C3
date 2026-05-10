@@ -5,7 +5,7 @@ import AnalysisHeader from './components/AnalysisHeader';
 
 const MobilitySocialAnalytics = () => {
   return (
-    <div className="w-full max-w-[90rem] mx-auto px-6 py-6">
+    <div className="w-full max-w-full mx-auto px-6 py-6">
       <AnalysisHeader
         overline="Mobility Analysis"
         title="Mobility and Social Network Analysis"
@@ -16,10 +16,10 @@ const MobilitySocialAnalytics = () => {
 
       <div className="flex flex-col gap-6 mt-6">
         <div className="min-h-[450px]">
-          <SankeyDiagram width={1000} height={400} />
+          <SankeyDiagram height={400} />
         </div>
         <div className="min-h-[450px]">
-          <NetworkGraph width={1000} height={400} />
+          <NetworkGraph height={400} />
         </div>
       </div>
 
