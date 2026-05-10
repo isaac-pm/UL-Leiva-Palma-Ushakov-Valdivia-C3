@@ -20,14 +20,7 @@ class DatabaseEnvs:
     )
     ASYNC_DB_URL = DATABASE_URL.replace("postgresql+psycopg2", "postgresql")
 
-    # Print all environment variables for debugging
-    print("Database Configuration:")
-    print(f"DB_USERNAME: {DB_USERNAME}")
-    print(f"DB_PASSWORD: {DB_PASSWORD}")
-    print(f"DB_NAME: {DB_NAME}")
-    print(f"DB_HOST: {DB_HOST}")
-    print(f"DB_PORT: {DB_PORT}")
-    print(f"DATABASE_URL: {DATABASE_URL}")
+    print("Database configuration loaded.")
 
 
 engine = create_engine(

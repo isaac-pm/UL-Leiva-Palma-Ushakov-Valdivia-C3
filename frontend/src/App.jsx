@@ -4,7 +4,7 @@ import MobilitySocialAnalytics from './MobilitySocialAnalytics';
 import EmploymentPatternsMap from './EmploymentPatternsMap';
 import WorkforceLifecycle from './WorkforceLifecycle';
 import BusinessProsperityAnalysis from './BusinessProsperityAnalysis';
-import AnalysisHeader from './components/AnalysisHeader';
+import ResidentFinancialHealth from './ResidentFinancialHealth';
 import { store } from './store';
 
 const tabs = [
@@ -29,18 +29,6 @@ const tabs = [
     label: 'Workforce Dynamics Lifecycle',
   },
 ];
-
-const PlaceholderPanel = ({ title }) => {
-  return (
-    <div className="mt-6">
-      <AnalysisHeader
-        overline="Coming soon"
-        title={title}
-        subtitle="This section is a placeholder for the upcoming analysis."
-      />
-    </div>
-  );
-};
 
 const getInitialTheme = () => {
   if (typeof window === 'undefined') {
@@ -118,7 +106,7 @@ function App() {
               <BusinessProsperityAnalysis />
             </section>
             <section hidden={activeTab !== 'resident-financial-health'}>
-              <PlaceholderPanel title="Resident Financial Health Over Time" />
+              <ResidentFinancialHealth />
             </section>
             <section hidden={activeTab !== 'employment-patterns'}>
               <EmploymentPatternsMap />

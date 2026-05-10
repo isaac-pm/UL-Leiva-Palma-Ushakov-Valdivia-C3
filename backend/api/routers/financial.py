@@ -31,6 +31,24 @@ def api_get_financial_count(
     )
 
 
+@router.get("/financials/resident-health-summary", response_model=ApiResponse)
+def api_get_resident_health_summary(
+    session: Session = Depends(get_db_session)
+):
+    result = FinancialService.get_resident_health_summary(session=session)
+
+    if not result.is_success:
+        raise HTTPException(
+            status_code=result.status_code,
+            detail=result.error
+        )
+
+    return ApiResponse.success(
+        data=result.value,
+        msg="Resident financial health summary retrieved successfully"
+    )
+
+
 @router.get("/financials", response_model=ApiResponse)
 def api_list_financials(
     participant_id: int = Query(..., description="Participant ID"),
