@@ -10,7 +10,6 @@ const LAYOUT_REGISTRY = {
             const {
                 width,
                 height,
-                rootSvg,
                 onSelect,
                 onHover,
                 showTooltip,

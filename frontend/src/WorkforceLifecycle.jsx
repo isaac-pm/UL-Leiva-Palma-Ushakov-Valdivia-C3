@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { useSelector } from 'react-redux';
 import WorkforceMatrixChart from './utils/d3/WorkforceMatrixChart';
 import { customfetch } from './utils/api';
 import AnalysisHeader from './components/AnalysisHeader';
@@ -14,6 +15,8 @@ const SECTOR_COLORS = {
 const WorkforceLifecycle = () => {
   const containerRef = useRef(null);
   const chartInstance = useRef(null);
+  const selectedBuildings = useSelector((s) => s.ui.selectedBuildings);
+  const buildingToEmployerIds = useSelector((s) => s.ui.buildingToEmployerIds);
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -92,10 +95,33 @@ const WorkforceLifecycle = () => {
     };
   }, []);
 
+  const filteredData = useMemo(() => {
+    if (!data) return null;
+
+    if (selectedBuildings.length === 0) return data;
+
+    const allowedEmpIds = new Set();
+    selectedBuildings.forEach(bId => {
+      const empIds = buildingToEmployerIds[bId];
+      if (empIds) empIds.forEach(eid => allowedEmpIds.add(eid));
+    });
+
+    if (allowedEmpIds.size === 0) return data;
+
+    return {
+      ...data,
+      employers: data.employers.filter(e => allowedEmpIds.has(e.employerId)),
+      aggregates: {
+        ...data.aggregates,
+        totalEmployers: data.employers.filter(e => allowedEmpIds.has(e.employerId)).length,
+      },
+    };
+  }, [data, selectedBuildings, buildingToEmployerIds]);
+
   useEffect(() => {
-    if (!chartInstance.current || !data) return;
-    chartInstance.current.update(data);
-  }, [data]);
+    if (!chartInstance.current || !filteredData) return;
+    chartInstance.current.update(filteredData);
+  }, [filteredData]);
 
   useEffect(() => {
     if (!chartInstance.current || !data) return;
@@ -261,6 +287,18 @@ const WorkforceLifecycle = () => {
               </p>
             </div>
           </div>
+
+          {selectedBuildings.length > 0 && (
+            <div className="rounded-2xl border border-purple-500/40 bg-purple-500/5 p-3 text-sm text-muted-foreground">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-foreground">Map Selection Filter</span>
+                <span className="text-[10px] text-purple-400">{selectedBuildings.length} building{selectedBuildings.length !== 1 ? 's' : ''}</span>
+              </div>
+              <p className="mt-1 text-[10px]">
+                Showing only employers in selected buildings.
+              </p>
+            </div>
+          )}
 
           {aggregates.totalEmployers && (
             <div className="rounded-2xl border border-border/60 bg-background/70 p-3 text-sm text-muted-foreground">
