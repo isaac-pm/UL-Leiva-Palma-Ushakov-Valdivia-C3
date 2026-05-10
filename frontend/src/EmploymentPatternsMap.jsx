@@ -71,6 +71,11 @@ const EmploymentPatternsMap = () => {
     return counts;
   }, [buildings]);
 
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedHexRadius(hexRadius), 200);
+    return () => clearTimeout(timer);
+  }, [hexRadius]);
+
   const getChartSize = useCallback(() => {
     if (!containerRef.current) {
       return { width: 900, height: 520 };
@@ -197,7 +202,7 @@ const EmploymentPatternsMap = () => {
         const response = await customfetch(`/api/employers/${selectedEmployer.employerId}/detail`);
         const data = response?.data?.data;
         if (isMounted) setEmployerDetail(data);
-      } catch (err) {
+      } catch {
         if (isMounted) setEmployerDetail(null);
       } finally {
         if (isMounted) setEmployerDetailLoading(false);
@@ -249,9 +254,6 @@ const EmploymentPatternsMap = () => {
       y: Math.min(y + 12, rect.height - tooltipHeight - 8),
     };
   };
-
-  const anyLayerActive = layerState.jobConcentration || layerState.wageGeography ||
-    layerState.employerStability;
 
   return (
     <div className="mx-auto w-full max-w-[90rem] px-6 py-6">

@@ -192,7 +192,7 @@ export default class WorkforceCompositeChart {
     }
 
     // nodes
-    aggPoints.forEach((p, i) => {
+    aggPoints.forEach((p) => {
       const cx = sLeft + xScale(p.avgTurnoverRate);
       const cy = sTop + yScale(p.avgVolatility);
 
