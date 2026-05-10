@@ -13,7 +13,8 @@ const DEFAULT_COLORS = {
 };
 
 const SELECTED_STROKE = '#8b5cf6';
-const DEFAULT_STROKE = '#111827';
+const BRUSH_FILL = 'rgba(139, 92, 246, 0.12)';
+const BRUSH_STROKE = '#8b5cf6';
 
 const HEX_RADIUS_DEFAULT = 20;
 
@@ -62,7 +63,8 @@ export default class BuildingsMapD3 {
     this.el = el;
     this.onSelect = options.onSelect || null;
     this.onHover = options.onHover || null;
-    this.currentSelection = null;
+    this.onBrushEnd = options.onBrushEnd || null;
+    this.selectedBuildings = new Set();
     this.size = { width: 800, height: 500 };
     this.margin = { top: 16, right: 16, bottom: 16, left: 16 };
     this.rotation = options.rotation ?? 'ccw';
@@ -71,6 +73,13 @@ export default class BuildingsMapD3 {
     this.hexbinLayer = null;
     this.buildingsLayer = null;
     this.currentZoomK = 1;
+    this.brushOverlay = null;
+    this.brushRect = null;
+    this.brushActive = false;
+    this.brushStart = null;
+    this.shiftHeld = false;
+    this._keydownHandler = null;
+    this._keyupHandler = null;
   }
 
   create({ size }) {
@@ -93,10 +102,90 @@ export default class BuildingsMapD3 {
     this.hexbinLayer = this.zoomLayer.append('g').attr('class', 'hexbin-layer');
     this.buildingsLayer = this.zoomLayer.append('g').attr('class', 'buildings-layer');
 
+    // brush selection rect (outside zoomLayer so it stays in viewport coords)
+    this.brushRect = this.svg.append('rect')
+      .attr('class', 'brush-rect')
+      .attr('fill', BRUSH_FILL)
+      .attr('stroke', BRUSH_STROKE)
+      .attr('stroke-dasharray', '4,2')
+      .attr('stroke-width', 1.5)
+      .attr('rx', 3)
+      .style('display', 'none')
+      .style('pointer-events', 'none');
+
+    // transparent overlay for intercepting Shift+drag
+    this.brushOverlay = this.svg.append('rect')
+      .attr('class', 'brush-overlay')
+      .attr('width', width)
+      .attr('height', height)
+      .attr('fill', 'none')
+      .style('pointer-events', 'none');
+
+    // track Shift key
+    this._keydownHandler = (e) => {
+      if (e.key === 'Shift') {
+        this.shiftHeld = true;
+        if (this.brushOverlay) {
+          this.brushOverlay.style('pointer-events', 'all');
+        }
+      }
+    };
+    this._keyupHandler = (e) => {
+      if (e.key === 'Shift') {
+        this.shiftHeld = false;
+        if (this.brushOverlay) {
+          this.brushOverlay.style('pointer-events', 'none');
+        }
+        this._endBrush();
+      }
+    };
+    document.addEventListener('keydown', this._keydownHandler);
+    document.addEventListener('keyup', this._keyupHandler);
+
+    // brush events on overlay
+    this.brushOverlay
+      .on('mousedown', (event) => {
+        if (!this.shiftHeld) return;
+        this.brushActive = true;
+        const rect = this.svg.node().getBoundingClientRect();
+        this.brushStart = {
+          x: event.clientX - rect.left,
+          y: event.clientY - rect.top,
+        };
+        this.brushRect
+          .attr('x', this.brushStart.x)
+          .attr('y', this.brushStart.y)
+          .attr('width', 0)
+          .attr('height', 0)
+          .style('display', null);
+      })
+      .on('mousemove', (event) => {
+        if (!this.brushActive || !this.brushStart) return;
+        const rect = this.svg.node().getBoundingClientRect();
+        const cx = event.clientX - rect.left;
+        const cy = event.clientY - rect.top;
+        const x = Math.min(this.brushStart.x, cx);
+        const y = Math.min(this.brushStart.y, cy);
+        this.brushRect
+          .attr('x', x)
+          .attr('y', y)
+          .attr('width', Math.abs(cx - this.brushStart.x))
+          .attr('height', Math.abs(cy - this.brushStart.y));
+      })
+      .on('mouseup', (event) => {
+        if (!this.brushActive) return;
+        this._completeBrush(event);
+      })
+      .on('mouseleave', () => {
+        if (this.brushActive) {
+          this._endBrush();
+        }
+      });
+
     this.zoom = d3
       .zoom()
       .scaleExtent([0.3, 15])
-      .filter((event) => !event.ctrlKey && !event.button)
+      .filter((event) => !event.ctrlKey && !event.button && !event.shiftKey)
       .on('zoom', (event) => {
         this.currentZoomK = event.transform.k;
         this.zoomLayer.attr('transform', event.transform);
@@ -104,6 +193,64 @@ export default class BuildingsMapD3 {
       });
 
     this.svg.call(this.zoom);
+  }
+
+  _completeBrush(event) {
+    if (!this.brushActive || !this.brushStart) {
+      this._endBrush();
+      return;
+    }
+
+    const rect = this.svg.node().getBoundingClientRect();
+    const endX = event.clientX - rect.left;
+    const endY = event.clientY - rect.top;
+
+    const left = Math.min(this.brushStart.x, endX);
+    const topY = Math.min(this.brushStart.y, endY);
+    const right = Math.max(this.brushStart.x, endX);
+    const bottom = Math.max(this.brushStart.y, endY);
+
+    const minArea = 4;
+    if ((right - left) * (bottom - topY) < minArea) {
+      this._endBrush();
+      return;
+    }
+
+    // convert brush rect to zoomLayer space
+    const xf = d3.zoomTransform(this.svg.node());
+    const p1 = xf.invert([left, topY]);
+    const p2 = xf.invert([right, bottom]);
+    const rLeft = Math.min(p1[0], p2[0]), rTop = Math.min(p1[1], p2[1]);
+    const rRight = Math.max(p1[0], p2[0]), rBottom = Math.max(p1[1], p2[1]);
+
+    const hitIds = [];
+    this.buildingsLayer.selectAll('path.building-polygon').each(function (d) {
+      const bbox = this.getBBox();
+      if (bbox.x < rRight && bbox.x + bbox.width > rLeft &&
+          bbox.y < rBottom && bbox.y + bbox.height > rTop) {
+        hitIds.push(d.id);
+      }
+    });
+
+    // add to selection
+    for (const id of hitIds) {
+      this.selectedBuildings.add(id);
+    }
+    this._applySelectionStroke();
+
+    if (this.onBrushEnd) {
+      this.onBrushEnd(Array.from(this.selectedBuildings));
+    }
+
+    this._endBrush();
+  }
+
+  _endBrush() {
+    this.brushActive = false;
+    this.brushStart = null;
+    if (this.brushRect) {
+      this.brushRect.style('display', 'none');
+    }
   }
 
   isGeoCoordinates(polygons) {
@@ -153,11 +300,28 @@ export default class BuildingsMapD3 {
     return { min, max };
   }
 
+  setSelectedBuildings(ids) {
+    this.selectedBuildings = new Set(ids);
+    this._applySelectionStroke();
+  }
+
+  clearSelection() {
+    this.selectedBuildings.clear();
+    this._applySelectionStroke();
+    if (this.onBrushEnd) {
+      this.onBrushEnd([]);
+    }
+  }
+
   update(polygons) {
     if (!this.svg || !this.zoomLayer) return;
 
-    if (this.currentSelection && !polygons.some((item) => item.id === this.currentSelection)) {
-      this.currentSelection = null;
+    // clean stale selections
+    const validIds = new Set(polygons.map(p => p.id));
+    for (const id of this.selectedBuildings) {
+      if (!validIds.has(id)) {
+        this.selectedBuildings.delete(id);
+      }
     }
 
     if (!polygons || polygons.length === 0) {
@@ -223,6 +387,11 @@ export default class BuildingsMapD3 {
         .attr('width', this.size.width)
         .attr('height', this.size.height)
         .attr('viewBox', [0, 0, this.size.width, this.size.height]);
+      if (this.brushOverlay) {
+        this.brushOverlay
+          .attr('width', this.size.width)
+          .attr('height', this.size.height);
+      }
     }
 
     const width = this.size.width - this.margin.left - this.margin.right;
@@ -268,8 +437,14 @@ export default class BuildingsMapD3 {
       .attr('class', 'building-polygon')
       .attr('vector-effect', 'non-scaling-stroke')
       .on('click', (event, d) => {
-        this.currentSelection = d.id;
-        this.updateSelection();
+        if (event.shiftKey) return;
+        if (this.selectedBuildings.has(d.id)) {
+          this.selectedBuildings.delete(d.id);
+        } else {
+          this.selectedBuildings.add(d.id);
+        }
+        this._applySelectionStroke();
+        if (this.onBrushEnd) this.onBrushEnd(Array.from(this.selectedBuildings));
         if (this.onSelect) this.onSelect(d);
       })
       .on('mousemove', (event, d) => {
@@ -297,14 +472,16 @@ export default class BuildingsMapD3 {
       .attr('fill', 'transparent')
       .attr('stroke', (d) => DEFAULT_COLORS[d.type] || DEFAULT_COLORS.Unknown)
       .attr('stroke-width', (d) => this.getZoomStrokeWidth(d))
-      .attr('d', pathBuilder);
+      .attr('d', pathBuilder)
+      .attr('stroke-dasharray', (d) => this.selectedBuildings.has(d.id) ? '6,3' : null);
 
-    this.updateSelection();
+    this._applySelectionStroke();
   }
 
   getZoomStrokeWidth(d) {
     const w = Math.max(0.2, Math.min(2, 0.5 * this.currentZoomK));
     if (d && d.id === this.currentSelection) return Math.max(2.5, w + 1);
+    if (d && this.selectedBuildings.has(d.id)) return Math.max(2, w + 0.5);
     return w;
   }
 
@@ -314,14 +491,14 @@ export default class BuildingsMapD3 {
       .attr('stroke-width', (d) => this.getZoomStrokeWidth(d));
   }
 
-  updateSelection() {
-    if (!this.zoomLayer) return;
-
+  _applySelectionStroke() {
+    if (!this.buildingsLayer) return;
     this.buildingsLayer.selectAll('path.building-polygon')
-      .attr('stroke', (d) => (d.id === this.currentSelection
+      .attr('stroke', (d) => (this.selectedBuildings.has(d.id)
         ? SELECTED_STROKE
         : DEFAULT_COLORS[d.type] || DEFAULT_COLORS.Unknown))
-      .attr('stroke-width', (d) => this.getZoomStrokeWidth(d));
+      .attr('stroke-width', (d) => this.getZoomStrokeWidth(d))
+      .attr('stroke-dasharray', (d) => this.selectedBuildings.has(d.id) ? '6,3' : null);
   }
 
   updateHexbin(employers, layerState, stats, callbacks = {}, hexRadius = HEX_RADIUS_DEFAULT) {
@@ -425,7 +602,8 @@ export default class BuildingsMapD3 {
       this.buildingsLayer.selectAll('path.building-polygon')
         .attr('fill', 'transparent')
         .attr('stroke', (d) => DEFAULT_COLORS[d.type] || DEFAULT_COLORS.Unknown)
-        .attr('stroke-width', (d) => this.getZoomStrokeWidth(d));
+        .attr('stroke-width', (d) => this.getZoomStrokeWidth(d))
+        .attr('stroke-dasharray', (d) => this.selectedBuildings.has(d.id) ? '6,3' : null);
       return;
     }
 
@@ -466,10 +644,15 @@ export default class BuildingsMapD3 {
         return 'none';
       })
       .attr('stroke', (d) => DEFAULT_COLORS[d.type] || DEFAULT_COLORS.Unknown)
-      .attr('stroke-width', (d) => this.getZoomStrokeWidth(d));
+      .attr('stroke-width', (d) => this.getZoomStrokeWidth(d))
+      .attr('stroke-dasharray', (d) => this.selectedBuildings.has(d.id) ? '6,3' : null);
   }
 
   destroy() {
+    document.removeEventListener('keydown', this._keydownHandler);
+    document.removeEventListener('keyup', this._keyupHandler);
+    this._keydownHandler = null;
+    this._keyupHandler = null;
     d3.select(this.el).selectAll('*').remove();
   }
 }

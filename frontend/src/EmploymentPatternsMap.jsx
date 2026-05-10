@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
 import BuildingsMapD3 from './utils/maps/buildingsMap';
 import { customfetch } from './utils/api';
 import AnalysisHeader from './components/AnalysisHeader';
@@ -6,6 +7,7 @@ import LayerControlPanel from './components/maps/LayerControlPanel';
 import EmployerDetailPanel from './components/panels/EmployerDetailPanel';
 import { useEmployerMapData } from './hooks/useEmployerMapData';
 import { DEFAULT_LAYER_STATE } from './types/employerMap';
+import { setSelectedBuildings, clearSelectedBuildings, setBuildingToEmployerIds } from './store/uiSlice';
 
 const formatNumber = (value) => {
   if (!Number.isFinite(value)) return '\u2014';
@@ -15,9 +17,10 @@ const formatNumber = (value) => {
 const EmploymentPatternsMap = () => {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
+  const dispatch = useDispatch();
+  const selectedBuildings = useSelector((s) => s.ui.selectedBuildings);
 
   const [buildings, setBuildings] = useState([]);
-  const [selected, setSelected] = useState(null);
   const [hovered, setHovered] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -44,7 +47,16 @@ const EmploymentPatternsMap = () => {
     });
     employerWageRef.current = wageLookup;
     employerIdByBuildingRef.current = idLookup;
-  }, [employers]);
+
+    const buildingEmpIds = {};
+    employers.forEach(e => {
+      if (e.buildingId != null) {
+        if (!buildingEmpIds[e.buildingId]) buildingEmpIds[e.buildingId] = [];
+        buildingEmpIds[e.buildingId].push(e.employerId);
+      }
+    });
+    dispatch(setBuildingToEmployerIds(buildingEmpIds));
+  }, [employers, dispatch]);
 
   const statsSummary = useMemo(() => {
     const counts = buildings.reduce(
@@ -100,10 +112,8 @@ const EmploymentPatternsMap = () => {
 
     mapRef.current = new BuildingsMapD3(containerRef.current, {
       rotation: '270',
-      onSelect: (item) => {
-        setSelected(item);
-        setSelectedEmployer(null);
-        setEmployerDetail(null);
+      onBrushEnd: (ids) => {
+        dispatch(setSelectedBuildings(ids));
       },
       onHover: (event, item) => {
         if (!event || !item || !containerRef.current) {
@@ -130,12 +140,17 @@ const EmploymentPatternsMap = () => {
       mapRef.current?.destroy();
       mapRef.current = null;
     };
-  }, [getChartSize]);
+  }, [getChartSize, dispatch]);
 
   useEffect(() => {
     if (!mapRef.current) return;
     mapRef.current.update(buildings);
   }, [buildings]);
+
+  useEffect(() => {
+    if (!mapRef.current) return;
+    mapRef.current.setSelectedBuildings(selectedBuildings);
+  }, [selectedBuildings]);
 
   useEffect(() => {
     if (!mapRef.current || !mapRef.current.mapPoint) return;
@@ -158,7 +173,6 @@ const EmploymentPatternsMap = () => {
         const top = bin.members.reduce((best, m) =>
           m.jobCount > (best?.jobCount || 0) ? m : best, null);
         if (!top) return;
-        setSelected(null);
         setSelectedEmployer(top);
       },
     }, debouncedHexRadius);
@@ -212,6 +226,16 @@ const EmploymentPatternsMap = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, [buildings, employers, layerState, stats, getChartSize, debouncedHexRadius]);
 
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key === 'Escape' && selectedBuildings.length > 0) {
+        dispatch(clearSelectedBuildings());
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [selectedBuildings, dispatch]);
+
   const handleCloseEmployer = useCallback(() => {
     setSelectedEmployer(null);
     setEmployerDetail(null);
@@ -234,7 +258,7 @@ const EmploymentPatternsMap = () => {
       <AnalysisHeader
         overline="Employment Patterns Map"
         title="Building footprints by activity hub"
-        subtitle="Zoom and click buildings to highlight them. This layer is sourced from the Buildings table."
+        subtitle="Click buildings to toggle selection. Shift+drag for rectangle selection. This layer is sourced from the Buildings table."
         right={(
           <div className="flex flex-wrap justify-end gap-2 text-[11px]">
             <div className="rounded-full bg-card px-3 py-1 text-foreground">
@@ -323,16 +347,31 @@ const EmploymentPatternsMap = () => {
 
               <div className="mt-4 rounded-lg bg-card/80 p-3">
                 <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Selection</p>
-                {selected ? (
+                {selectedBuildings.length > 0 ? (
                   <div className="mt-2 text-sm text-foreground">
-                    <div>Building {selected.id}</div>
-                    <div className="text-xs text-muted-foreground">{selected.type || 'Unknown'}</div>
-                    {employerIdByBuildingRef.current[selected.id] != null && (
-                      <div className="mt-1 text-xs text-yellow-600">Employer {employerIdByBuildingRef.current[selected.id]}</div>
-                    )}
+                    <div>{selectedBuildings.length} building{selectedBuildings.length !== 1 ? 's' : ''} selected</div>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {selectedBuildings.slice(0, 10).map(id => (
+                        <span key={id} className="rounded bg-accent/10 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                          #{id}
+                        </span>
+                      ))}
+                      {selectedBuildings.length > 10 && (
+                        <span className="text-[10px] text-muted-foreground">+{selectedBuildings.length - 10} more</span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => {
+                        dispatch(clearSelectedBuildings());
+                        mapRef.current?.clearSelection();
+                      }}
+                      className="mt-2 text-[10px] px-2 py-0.5 rounded border border-border/60 text-muted-foreground hover:bg-accent/10"
+                    >
+                      Clear selection
+                    </button>
                   </div>
                 ) : (
-                  <p className="mt-2 text-xs">No building selected yet.</p>
+                  <p className="mt-2 text-xs">Click buildings to select. Shift+drag for rectangle selection.</p>
                 )}
               </div>
 
