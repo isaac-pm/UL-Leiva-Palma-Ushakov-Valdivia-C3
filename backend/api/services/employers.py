@@ -132,16 +132,13 @@ class EmployerService:
     @staticmethod
     def get_map_data(session: Session) -> Result:
         try:
-            shift_hours = case(
-                (
-                    func.count(Jobs.jobId) > 0,
-                    func.avg(
-                        (
-                            func.extract("epoch", Jobs.endTime)
-                            - func.extract("epoch", Jobs.startTime)
-                        ) / 3600.0
-                    ),
-                ),
+            shift_duration = (
+                func.extract("epoch", Jobs.endTime)
+                - func.extract("epoch", Jobs.startTime)
+            ) / 3600.0
+
+            shift_hours_avg = case(
+                (func.count(Jobs.jobId) > 0, func.avg(shift_duration)),
                 else_=None,
             )
 
@@ -154,7 +151,9 @@ class EmployerService:
                     func.count(Jobs.jobId).label("jobCount"),
                     func.avg(Jobs.hourlyRate).label("avgHourlyRate"),
                     func.coalesce(func.stddev_samp(Jobs.hourlyRate), 0.0).label("wageVariance"),
-                    shift_hours.label("avgShiftHours"),
+                    shift_hours_avg.label("avgShiftHours"),
+                    func.coalesce(func.stddev_samp(shift_duration), 0.0).label("shiftHourVariance"),
+                    func.coalesce(func.count(distinct(Jobs.educationRequirement)), 0).label("educationLevelCount"),
                 )
                 .select_from(Employers)
                 .join(Jobs, Jobs.employerId == Employers.employerId, isouter=True)
@@ -181,6 +180,8 @@ class EmployerService:
                     avg_hourly_rate,
                     wage_variance,
                     avg_shift_hours,
+                    shift_hours_variance,
+                    edu_level_count,
                 ) = row
 
                 point = EmployerService.parse_wkt_point(employer_location)
@@ -191,6 +192,17 @@ class EmployerService:
                 if point is None:
                     continue
 
+                ah = float(avg_hourly_rate or 0)
+                wv = float(wage_variance or 0)
+                ash = float(avg_shift_hours or 0)
+                shv = float(shift_hours_variance or 0)
+                elc = int(edu_level_count or 0)
+
+                wage_cv = wv / max(ah, 1.0) if ah > 0 else 0.0
+                shift_cv = shv / max(ash, 1.0) if ash > 0 else 0.0
+                edu_discount = 1.0 / (1.0 + elc * 0.25)
+                instability_score = (wage_cv * 0.6 + shift_cv * 0.4) * edu_discount
+
                 data.append({
                     "employerId": employer_id,
                     "buildingId": building_id,
@@ -200,9 +212,12 @@ class EmployerService:
                         "coordinates": rings,
                     } if rings else None,
                     "jobCount": int(job_count or 0),
-                    "avgHourlyRate": float(avg_hourly_rate or 0),
-                    "wageVariance": float(wage_variance or 0),
-                    "avgShiftHours": float(avg_shift_hours or 0),
+                    "avgHourlyRate": ah,
+                    "wageVariance": wv,
+                    "avgShiftHours": ash,
+                    "shiftHourVariance": shv,
+                    "educationLevelCount": elc,
+                    "instabilityScore": round(instability_score, 6),
                 })
 
             return Result.ok({"data": data})

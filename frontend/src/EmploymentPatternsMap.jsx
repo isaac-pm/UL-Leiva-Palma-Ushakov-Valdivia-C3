@@ -339,6 +339,7 @@ const EmploymentPatternsMap = () => {
               detail={employerDetail}
               loading={employerDetailLoading}
               onClose={handleCloseEmployer}
+              stats={stats}
             />
           ) : (
             <aside className="w-full rounded-2xl border border-border/60 bg-background/70 p-3 text-sm text-muted-foreground">

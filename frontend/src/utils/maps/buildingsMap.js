@@ -536,7 +536,7 @@ export default class BuildingsMapD3 {
       colorFn = d3.scaleSequential([Math.max(0, minV), Math.max(maxV, 1)], d3.interpolateRdYlGn);
     } else if (activeLayer === 'employerStability') {
       bins.forEach(b => {
-        const valid = b.members.map(m => m.wageVariance).filter(v => Number.isFinite(v));
+        const valid = b.members.map(m => m.instabilityScore).filter(v => Number.isFinite(v));
         b.value = valid.length > 0 ? d3.mean(valid) : 0;
       });
       const [t1, t2] = (stats && stats.varianceThresholds) || [0, 0];
@@ -603,7 +603,7 @@ export default class BuildingsMapD3 {
     employers.forEach(e => {
       if (e.buildingId != null) {
         wageLookup[e.buildingId] = e.avgHourlyRate;
-        varLookup[e.buildingId] = e.wageVariance;
+        varLookup[e.buildingId] = e.instabilityScore;
       }
     });
 

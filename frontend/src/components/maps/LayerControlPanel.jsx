@@ -153,7 +153,7 @@ export default function LayerControlPanel({ layerState, setLayerState, stats, he
             <>
               <span className="font-medium text-foreground">Stability</span>
               <div className="mt-0.5 text-muted-foreground">
-                {layerState.stabilityMode === SUB_MODE_GENERAL ? 'Hexagons show wage variance — red is unstable, green is stable' : 'Building color reflects the employer\'s wage variance'}
+                {layerState.stabilityMode === SUB_MODE_GENERAL ? 'Hexagons aggregate a composite score: wage consistency, schedule regularity, and role diversity penalize high variance — red is unstable, green is stable' : 'Building color reflects the employer\'s composite stability score'}
               </div>
               {Object.entries(EMPLOYER_STABILITY_COLORS).map(([key, color]) => (
                 <div key={key} className="mt-0.5 flex items-center gap-1.5">

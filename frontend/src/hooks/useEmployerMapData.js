@@ -22,8 +22,8 @@ export function useEmployerMapData() {
         const hourlyRates = data
           .map((e) => e.avgHourlyRate)
           .filter((r) => r > 0);
-        const variances = data
-          .map((e) => e.wageVariance)
+        const scores = data
+          .map((e) => e.instabilityScore)
           .filter((v) => Number.isFinite(v) && v > 0)
           .sort((a, b) => a - b);
 
@@ -31,9 +31,9 @@ export function useEmployerMapData() {
         const minWage = hourlyRates.length > 0 ? Math.min(...hourlyRates) : 0;
         const maxWage = hourlyRates.length > 0 ? Math.max(...hourlyRates) : 1;
 
-        const varianceCount = variances.length;
-        const t1 = varianceCount > 0 ? variances[Math.floor(varianceCount / 3)] : 0;
-        const t2 = varianceCount > 0 ? variances[Math.floor((2 * varianceCount) / 3)] : 0;
+        const scoreCount = scores.length;
+        const t1 = scoreCount > 0 ? scores[Math.floor(scoreCount / 3)] : 0;
+        const t2 = scoreCount > 0 ? scores[Math.floor((2 * scoreCount) / 3)] : 0;
 
         setStats({ maxJobs, minWage, maxWage, varianceThresholds: [t1, t2] });
         setError(null);

@@ -21,6 +21,12 @@ const stabilityLevel = (value, thresholds) => {
   return 'unstable';
 };
 
+const stdDev = (values, mean) => {
+  if (values.length < 2) return 0;
+  const sqDiffs = values.reduce((acc, v) => acc + (v - mean) ** 2, 0);
+  return Math.sqrt(sqDiffs / (values.length - 1));
+};
+
 function StatRow({ label, value, color }) {
   return (
     <div className="flex items-center justify-between text-xs">
@@ -32,7 +38,7 @@ function StatRow({ label, value, color }) {
   );
 }
 
-export default function EmployerDetailPanel({ detail, loading, employerId, onClose }) {
+export default function EmployerDetailPanel({ detail, loading, employerId, onClose, stats }) {
   const { jobs = [], cityAvgWage = 0, participantCount = 0 } = detail || {};
 
   const employerAvg = useMemo(() => {
@@ -41,22 +47,40 @@ export default function EmployerDetailPanel({ detail, loading, employerId, onClo
     return sum / jobs.length;
   }, [jobs]);
 
-  const wageVariance = useMemo(() => {
-    if (jobs.length < 2) return 0;
-    const mean = employerAvg;
-    const sqDiffs = jobs.reduce((acc, j) => acc + ((j.hourlyRate || 0) - mean) ** 2, 0);
-    return Math.sqrt(sqDiffs / (jobs.length - 1));
+  const wageStdDev = useMemo(() => {
+    const rates = jobs.map(j => j.hourlyRate).filter(r => r != null);
+    return rates.length < 2 ? 0 : stdDev(rates, employerAvg);
   }, [jobs, employerAvg]);
-
-  const stability = useMemo(() => {
-    return stabilityLevel(wageVariance, []);
-  }, [wageVariance]);
 
   const avgShiftHours = useMemo(() => {
     if (jobs.length === 0) return 0;
     const sum = jobs.reduce((acc, j) => acc + (j.shiftHours || 0), 0);
     return sum / jobs.length;
   }, [jobs]);
+
+  const shiftStdDev = useMemo(() => {
+    const hours = jobs.map(j => j.shiftHours).filter(h => h != null && h > 0);
+    if (hours.length < 2) return 0;
+    const mean = hours.reduce((s, h) => s + h, 0) / hours.length;
+    return stdDev(hours, mean);
+  }, [jobs]);
+
+  const eduCount = useMemo(() => {
+    const levels = new Set(jobs.map(j => j.educationRequirement).filter(Boolean));
+    return levels.size;
+  }, [jobs]);
+
+  const instabilityScore = useMemo(() => {
+    const wageCV = employerAvg > 0 ? wageStdDev / Math.max(employerAvg, 1) : 0;
+    const shiftCV = avgShiftHours > 0 ? shiftStdDev / Math.max(avgShiftHours, 1) : 0;
+    const eduDiscount = 1 / (1 + eduCount * 0.25);
+    return (wageCV * 0.6 + shiftCV * 0.4) * eduDiscount;
+  }, [wageStdDev, employerAvg, shiftStdDev, avgShiftHours, eduCount]);
+
+  const thresholds = useMemo(() => (stats && stats.varianceThresholds) || [0, 0], [stats]);
+  const stability = useMemo(() => {
+    return stabilityLevel(instabilityScore, thresholds);
+  }, [instabilityScore, thresholds]);
 
   const stabilityColor = EMPLOYER_STABILITY_COLORS[stability] || '#9ca3af';
 
@@ -96,7 +120,7 @@ export default function EmployerDetailPanel({ detail, loading, employerId, onClo
           <div className="mt-1.5 space-y-1">
             <StatRow label="Avg hourly" value={formatCurrency(employerAvg)} />
             <StatRow label="City avg" value={formatCurrency(cityAvgWage)} />
-            <StatRow label="Variance (\u03c3)" value={`$${wageVariance.toFixed(2)}`} />
+            <StatRow label="Wage \u03c3" value={`$${wageStdDev.toFixed(2)}`} />
           </div>
         </div>
 
@@ -106,7 +130,7 @@ export default function EmployerDetailPanel({ detail, loading, employerId, onClo
           </p>
           <div className="mt-1.5">
             <StatRow
-              label="Wage stability"
+              label="Stability"
               value={EMPLOYER_STABILITY_LABELS[stability] || 'Unknown'}
               color={stabilityColor}
             />
