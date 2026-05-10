@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Provider } from 'react-redux';
 import MobilitySocialAnalytics from './MobilitySocialAnalytics';
 import EmploymentPatternsMap from './EmploymentPatternsMap';
+import BusinessProsperityAnalysis from './BusinessProsperityAnalysis';
 import AnalysisHeader from './components/AnalysisHeader';
 import { store } from './store';
 
@@ -52,7 +53,7 @@ const getInitialTheme = () => {
 };
 
 function App() {
-  const [activeTab, setActiveTab] = useState('mobility-social');
+  const [activeTab, setActiveTab] = useState('business-prosperity');
   const [theme, setTheme] = useState(getInitialTheme);
 
   useEffect(() => {
@@ -109,7 +110,7 @@ function App() {
         <main className="flex-1">
           <div className="w-full">
             <section hidden={activeTab !== 'business-prosperity'}>
-              <PlaceholderPanel title="Business Prosperity Analysis" />
+              <BusinessProsperityAnalysis />
             </section>
             <section hidden={activeTab !== 'resident-financial-health'}>
               <PlaceholderPanel title="Resident Financial Health Over Time" />
