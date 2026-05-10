@@ -147,30 +147,23 @@ export default class BuildingsMapD3 {
       .on('mousedown', (event) => {
         if (!this.shiftHeld) return;
         this.brushActive = true;
-        const rect = this.svg.node().getBoundingClientRect();
-        this.brushStart = {
-          x: event.clientX - rect.left,
-          y: event.clientY - rect.top,
-        };
+        const [bx, by] = d3.pointer(event);
+        this.brushStart = { x: bx, y: by };
         this.brushRect
-          .attr('x', this.brushStart.x)
-          .attr('y', this.brushStart.y)
+          .attr('x', bx)
+          .attr('y', by)
           .attr('width', 0)
           .attr('height', 0)
           .style('display', null);
       })
       .on('mousemove', (event) => {
         if (!this.brushActive || !this.brushStart) return;
-        const rect = this.svg.node().getBoundingClientRect();
-        const cx = event.clientX - rect.left;
-        const cy = event.clientY - rect.top;
-        const x = Math.min(this.brushStart.x, cx);
-        const y = Math.min(this.brushStart.y, cy);
+        const [bx, by] = d3.pointer(event);
         this.brushRect
-          .attr('x', x)
-          .attr('y', y)
-          .attr('width', Math.abs(cx - this.brushStart.x))
-          .attr('height', Math.abs(cy - this.brushStart.y));
+          .attr('x', Math.min(this.brushStart.x, bx))
+          .attr('y', Math.min(this.brushStart.y, by))
+          .attr('width', Math.abs(bx - this.brushStart.x))
+          .attr('height', Math.abs(by - this.brushStart.y));
       })
       .on('mouseup', (event) => {
         if (!this.brushActive) return;
@@ -201,14 +194,12 @@ export default class BuildingsMapD3 {
       return;
     }
 
-    const rect = this.svg.node().getBoundingClientRect();
-    const endX = event.clientX - rect.left;
-    const endY = event.clientY - rect.top;
+    const [bx, by] = d3.pointer(event);
 
-    const left = Math.min(this.brushStart.x, endX);
-    const topY = Math.min(this.brushStart.y, endY);
-    const right = Math.max(this.brushStart.x, endX);
-    const bottom = Math.max(this.brushStart.y, endY);
+    const left = Math.min(this.brushStart.x, bx);
+    const topY = Math.min(this.brushStart.y, by);
+    const right = Math.max(this.brushStart.x, bx);
+    const bottom = Math.max(this.brushStart.y, by);
 
     const minArea = 4;
     if ((right - left) * (bottom - topY) < minArea) {
