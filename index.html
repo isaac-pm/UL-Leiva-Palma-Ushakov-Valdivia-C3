@@ -1,145 +1,253 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title></title>
-<style>
-body {
-    font-family: "Times New Roman", serif;
-    font-size: 12pt;
-    color: black;
-    margin: 1in;
-    line-height: 1.15;
-}
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title></title>
+    <style>
+      body {
+        font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+        font-size: 11pt;
+        color: black;
+        margin: 1in auto;
+        max-width: 9in;
+        line-height: 1.4;
+        text-align: justify;
+      }
 
-h2 {
-    font-size: 18pt;
-    font-weight: bold;
-    margin: 0;
-}
+      h2 {
+        font-size: 16pt;
+        font-weight: bold;
+        margin: 0 0 6pt 0;
+      }
 
-h3 {
-    font-size: 13.5pt;
-    font-weight: bold;
-    margin: 0;
-}
+      h3 {
+        font-size: 13pt;
+        font-weight: bold;
+        margin: 12pt 0 4pt 0;
+      }
 
-p {
-    margin: 0 0 10pt 0;
-}
+      p {
+        margin: 0 0 8pt 0;
+      }
 
-a {
-    color: blue;
-    text-decoration: underline;
-}
+      img {
+        max-width: 70%;
+        height: auto;
+      }
 
-a:visited {
-    color: purple;
-}
+      a {
+        color: #0563c1;
+        text-decoration: underline;
+      }
 
-.highlight {
-    background-color: yellow;
-}
+      a:visited {
+        color: #7a3b8e;
+      }
 
-.calibri {
-    font-family: Calibri, sans-serif;
-    font-size: 11pt;
-}
+      .highlight {
+        background-color: yellow;
+      }
 
-.arial {
-    font-family: Arial, sans-serif;
-    font-size: 11pt;
-}
+      .center {
+        text-align: center;
+      }
 
-.center {
-    text-align: center;
-}
+      .indent {
+        margin-left: 0.25in;
+      }
 
-.indent {
-    margin-left: 0.25in;
-}
+      .divider {
+        border-bottom: 1pt solid black;
+        padding-bottom: 1pt;
+        margin-bottom: 10pt;
+      }
 
-.divider {
-    border-bottom: 1pt solid black;
-    padding-bottom: 1pt;
-    margin-bottom: 10pt;
-}
-</style>
-</head>
-<body>
+      p > span {
+        font-weight: bold;
+      }
 
-<h2 class="calibri center">Entry Name: <span class="">"UL-Leiva-C3"</span></h2>
+      table {
+        border: 1pt solid black;
+        border-collapse: collapse;
+        margin: 0 auto;
+      }
 
-<h2 class="calibri center">VAST Challenge 2026<br><u>Challenge 3</u></h2>
+      th,
+      td {
+        border: 1pt solid black;
+        padding: 4pt 8pt;
+        text-align: left;
+      }
+    </style>
+  </head>
+  <body>
+    <h2 class="center">Entry Name: <span>"UL-Leiva-C3"</span></h2>
 
-<h3 class="calibri">&nbsp;</h3>
+    <h2 class="center">VAST Challenge 2026<br /><u>Challenge 3</u></h2>
 
-<h3 class="calibri">&nbsp;</h3>
+    <h3>&nbsp;</h3>
 
-<h3 class="calibri">Team Members:</h3>
+    <h3>&nbsp;</h3>
 
-<p class="calibri">Esteban Leiva Montenegro, University of Luxembourg, <a href="mailto:esteban.leiva.001@student.uni.lu">esteban.leiva.001@student.uni.lu</a> PRIMARY<br>
-Isaac Palma Medina, University of Luxembourg, <a href="mailto:isaac.palma.001@student.uni.lu">isaac.palma.001@student.uni.lu</a><br>
-Andrii Ushakov, University of Luxembourg, <a href="mailto:andrii.ushakov.001@student.uni.lu">andrii.ushakov.001@student.uni.lu</a><br>
-José Valdivia Agüero, University of Luxembourg, <a href="mailto:jose.valdivia.001@student.uni.lu">jose.valdivia.001@student.uni.lu</a></p>
+    <h3>Team Members:</h3>
 
-<p class="calibri"><b>Student Team:</b> <i><span class="">YES</span></i></p>
+    <p>
+      Esteban Leiva Montenegro, University of Luxembourg, <a href="mailto:esteban.leiva.001@student.uni.lu">esteban.leiva.001@student.uni.lu</a> PRIMARY<br />
+      Isaac Palma Medina, University of Luxembourg, <a href="mailto:isaac.palma.001@student.uni.lu">isaac.palma.001@student.uni.lu</a><br />
+      Andrii Ushakov, University of Luxembourg, <a href="mailto:andrii.ushakov.001@student.uni.lu">andrii.ushakov.001@student.uni.lu</a><br />
+      José Valdivia Agüero, University of Luxembourg, <a href="mailto:jose.valdivia.001@student.uni.lu">jose.valdivia.001@student.uni.lu</a>
+    </p>
 
-<h3 class="calibri">Tools Used:</h3>
+    <p>
+      <b>Student Team:</b> <i><span>YES</span></i>
+    </p>
 
-<p class="calibri"><i><span class="highlight">Provide a list of tools used by the team. Examples:</span></i></p>
+    <p><b>Tools Used</b></p>
 
-<p class="calibri"><i><span class="highlight">Tableau</span></i></p>
+    <ul>
+      <li>D3.js (Sankey diagrams, force-directed network graphs, hexbin layers, heatmap matrices, SVG data joins, zoom/pan)</li>
+      <li>React 19 + Vite (frontend framework)</li>
+      <li>Redux Toolkit (cross-tab state management and linked view coordination)</li>
+      <li>Tailwind CSS v4 (styling)</li>
+      <li>FastAPI (Python backend API)</li>
+      <li>SQLModel / SQLAlchemy (ORM and data access)</li>
+      <li>PostgreSQL (database)</li>
+      <li>igraph (Leiden community detection, PageRank computation)</li>
+      <li>Custom SVG/React components (financial health dashboard charts)</li>
+    </ul>
 
-<p class="calibri"><i><span class="highlight">Excel</span></i></p>
+    <p><b>Approximately how many hours were spent working on this submission in total?</b></p>
 
-<p class="calibri"><i><span class="highlight">Spinviz, developed by the University of Luxembourg MHPC High Performance Data Analytics and Visualisation, Fall 2025, by the student team for the challenge.</span></i></p>
+    <p>Approximately <b>95–105 hours</b> in total across the team:</p>
+    <ul>
+      <li>Esteban: ~40 hours (8h visualizations + ~3 days backend preparation + 16h database seeding)</li>
+      <li>Isaac: ~30–35 hours (20h Employment Patterns Map + 12–15h Workforce Lifecycle dashboard)</li>
+      <li>Andrii: ~8–10 hours (data prep, backend endpoint, frontend dashboard)</li>
+      <li>José: ~16 hours (financial data pipeline, dashboard implementation, cohort comparison charts)</li>
+    </ul>
 
-<p class="calibri"><b>Approximately how many hours were spent working on this submission in total?</b></p>
+    <p><b>Video</b></p>
 
-<p class="calibri"><i><span class="highlight">Provide an estimate of the total number of hours worked on this submission by your entire team.</span></i></p>
+    <p>
+      <i><span class="highlight">Provide a link to your video. Example:</span></i>
+    </p>
 
-<p class="calibri"><b>Video</b></p>
+    <p>
+      <b><a href="http://www.youtube.com/ul-smith-mc3-video.avi" class="highlight">http://www.youtube.com/ul-smith-mc3-video.avi</a></b>
+    </p>
 
-<p class="calibri"><i><span class="highlight">Provide a link to your video. Example:</span></i></p>
+    <div class="divider"></div>
 
-<p class="calibri"><b><a href="http://www.youtube.com/ul-smith-mc3-video.avi" class="highlight">http://www.youtube.com/ul-smith-mc3-video.avi</a></b></p>
+    <p>Use visual analytics to analyze the available data and develop responses to the questions to be provided. In addition, prepare a video that shows how you used visual analytics to solve this challenge.</p>
 
-<div class="divider"></div>
+    <p><b>Questions</b></p>
 
-<p class="arial">Use visual analytics to analyze the available data and develop responses to the questions to be provided. In addition, prepare a video that shows how you used visual analytics to solve this challenge.</p>
+    <p><b>1</b> - <span>Over the period covered by the dataset, which businesses appear to be more prosperous? Which appear to be struggling? Describe your rationale for your answers. Limit your response to 10 images and 500 words.</span></p>
 
-<p>&nbsp;</p>
-<p>&nbsp;</p>
-<p>&nbsp;</p>
+    <p><strong>Prosperous Businesses</strong></p>
+    <p>Assuming direct revenue is unavailable, our analysis starts by defining <strong>estimated sales</strong> as check-in visits multiplied by listed venue cost. Applying sequential category filters (pubs vs. restaurants) and sorting by volume established our starting baseline. The most prosperous businesses are pubs, notably <strong>Pub 1342</strong>, <strong>Pub 1344</strong>, <strong>Pub 1798</strong>, <strong>Pub 1343</strong>, and <strong>Pub 1800</strong>. Pub 1342 leads with ~$712,658 in estimated sales from 50,400 visits and 631 unique customers. Pub 1344 commands 837 customers and 54,174 visits, yielding ~$564,238. Design rationale dictated building a <strong>ranked bar chart</strong> for rapid performance ranking and a linked <strong>portfolio scatterplot</strong> rather than a map, because prosperity is explained by customer reach and visit efficiency rather than geography. Interactive clicking and hovering connect these views to update a detail panel. Beyond hospitality, the <strong>Employment Patterns Map</strong> shows stable employers (<strong>#1297, #1298, #1789, #1767</strong>) with deep-green footprints (composite stability scores 1.00–1.38), maintaining steady headcounts of 4–6 workers across all 15 months, confirmed via the linked <strong>Workforce Dynamics Lifecycle</strong> heatmap.</p>
 
-<p class="calibri"><b>Questions</b></p>
+    <center><img src="index_assets/image18.png" alt="" /></center>
+    <center><img src="index_assets/image11.png" alt="" /></center>
+    <center><img src="index_assets/image13.png" alt="" /></center>
+    <center><img src="index_assets/image2.png" alt="" /></center>
 
-<p class="calibri"><b>1</b> - <span class="arial">Over the period covered by the dataset, which businesses appear to be more prosperous? Which appear to be struggling? Describe your rationale for your answers. Limit your response to 10 images and 500 words.</span></p>
+    <p><strong>Struggling Businesses</strong></p>
+    <p>Several restaurants rank at the bottom: <strong>Restaurant 1347, 1348, 1803, and 898</strong> show low estimated sales and negative <strong>visit change</strong> (defined as second-half check-ins declining versus the first half). In the scatterplot, these cluster near the origin with small circle sizes, confirming weak traffic. On the workforce side, selecting clusters via Redux-linked spatial brushing filters the heatmap to expose severe anomalies: employers <strong>#1747, #1758, #1769, and #1743</strong> exhibit extreme volatility indices (3.90–9.29). This reflects an acute anomaly: an initial sharp headcount contraction after March 2022 followed by stagnant, minimal staffing and disproportionately high turnover. Map stability layers render these footprints red due to high variance in wage consistency and schedule regularity.</p>
 
-<p>&nbsp;</p>
+    <center><img src="index_assets/image21.png" alt="" /></center>
 
-<p class="calibri"><b><i><span class="highlight">Provide your answer and corresponding images here.</span></i></b></p>
+    <p><strong>Rationale</strong></p>
+    <p>Prosperity is evaluated through demand-side revenue proxies and supply-side workforce retention stability. Linking multiple coordinated views allows filtering by performance attributes or drawing spatial bounding boxes to instantly isolate underlying workforce churn. This visual analytics software reveals that steady employee retention correlates with predictable revenue. Conversely, the spatial inversion anomaly—where the highest job-density central hubs exhibit the most unstable turnover—proves that business size alone does not ensure health. Fragile hospitality micro-operators drive this instability, demonstrating the value of cross-tab coordination over isolated charts.</p>
 
-<p class="calibri"><b>2</b> - <span class="arial">How does the financial health of the residents change over the period covered by the dataset? How do wages compare to the overall cost of living in Engagement? Are there groups that appear to exhibit similar patterns? Describe your rationale for your answers. Limit your response to 10 images and 500 words.</span></p>
+    <hr />
 
-<p class="calibri">
-Residents' financial health improved significantly over the 15-month period (March 2022 – May 2023). The citywide median ending balance rose from $2,810 to $33,637, indicating a substantial accumulation of financial cushion. Wages consistently covered the cost of living; median income remained well above median expenses in every month, with the median income-to-expenses ratio ranging from 2.31 to 2.71. Financial stress remained very low, with the citywide stress share (residents with expenses > wages or negative balance) peaking at only 1.1% in April 2022 and ending at 0.3% in May 2023. Education cohorts exhibit similar upward trends in balance but diverge in resilience. By May 2023, Graduates and Bachelors maintained the strongest positions (median balances of $55,827 and $45,083, respectively, with 0% stress). The 'Low education' cohort, while also improving, remained the most vulnerable with the lowest median balance ($18,135) and the highest stress share (1.8% in the final month, peaking at 7.1% in June 2022). Across all groups, housing was the dominant expense, consistently comprising over 50% of measured costs for most cohorts.
-</p>
+    <p><b>2</b> - <span>How does the financial health of the residents change over the period covered by the dataset? How do wages compare to the overall cost of living in Engagement? Are there groups that appear to exhibit similar patterns? Describe your rationale for your answers. Limit your response to 10 images and 500 words.</span></p>
 
-<div class="center">
-    <img src="index_assets/q2_trends.png" alt="Balance and Stress Trends" style="width: 80%;"><br>
-    <img src="index_assets/q2_income_expenses.png" alt="Income vs Expenses" style="width: 80%;"><br>
-    <img src="index_assets/q2_cohorts.png" alt="Cohort Comparison" style="width: 80%;">
-</div>
+    <p><strong>Overall Trajectory</strong></p>
+    <p>To resolve performance bottlenecks with the massive activity_logs table, our starting point for analysis extracted monthly balances from travel_journal.endingBalance and transactions from financial_journal, assuming these reliably proxy liquid wealth. We define <strong>financial stress</strong> as months where measured expenses exceed wages or ending balances fall below zero. Residents became measurably more financially secure: the <strong>Balance &amp; Stress Trend chart</strong> shows median ending balances climbing from $2,810 in March 2022 to $33,637 in May 2023. Stress remained consistently low, peaking at 1.1% in April 2022 and dropping to 0.3% in May 2023.</p>
 
+    <center><img src="index_assets/image3.png" alt="" /></center>
 
-<p class="calibri"><b>3</b> - <span class="arial">Describe the health of the various employers within the city limits. What employment patterns do you observe? Do you notice any areas of particularly high or low turnover? Limit your response to 10 images and 500 words.</span></p>
+    <p><strong>Wages vs. Cost of Living</strong></p>
+    <p>Design rationale required coordinated views rather than a single plot to simultaneously evaluate temporal change, income margins, and cohort patterns. The <strong>Income vs. Expenses chart</strong> proves median wages consistently covered measured expenses, maintaining an income-to-expenses ratio between 2.31 and 2.71. Interactive filtering via the population dropdown and clicking specific month datapoints dynamically updates the expense composition panel. This interaction clearly shows housing as the dominant structural cost, consistently exceeding 50% of measured expenses across all months.</p>
 
-<p class="calibri"><b><i><span class="highlight">Provide your answer and corresponding images here.</span></i></b></p>
+    <center><img src="index_assets/image4.png" alt="" /></center>
 
-<p>&nbsp;</p>
+    <p><strong>Cohort Patterns</strong></p>
+    <p>A shared X-axis <strong>multi-line cohort chart</strong> with fixed Y-axis ranges was chosen to prevent automatic scaling distortions, making the gap between groups much easier to compare. Toggling metrics (Balance, Stress, Savings Rate) reveals extreme stratification: Graduates ended strongly at $55,827 with increasing savings rates, whereas Low Education residents ended at $18,135 with declining savings margins and an anomalous stress peak of 7.1% in June 2022. To explain these patterns, our visual analytics software links a multi-level <strong>Sankey diagram</strong> (income quartiles to travel purposes) with a force-directed <strong>Social Network Graph</strong> (Leiden community detection). Redux state management coordinates them: clicking a network cluster isolates related income flows in the Sankey. This reveals a distinct behavioral anomaly: high-income nodes maintain thick outbound flows for discretionary eating and recreation, while low-income flows concentrate strictly on commuting, reflecting severe financial constraints.</p>
 
-</body>
+    <table>
+      <thead>
+        <tr>
+          <th>Cohort</th>
+          <th>May 2023 Median Balance</th>
+          <th>Stress Peak</th>
+          <th>Stress End</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Graduate</td>
+          <td>$55,827</td>
+          <td>~0.5%</td>
+          <td>~0.1%</td>
+        </tr>
+        <tr>
+          <td>Bachelors</td>
+          <td>$45,083</td>
+          <td>~0.7%</td>
+          <td>~0.2%</td>
+        </tr>
+        <tr>
+          <td>High School / College</td>
+          <td>$22,501</td>
+          <td>~1.2%</td>
+          <td>~0.4%</td>
+        </tr>
+        <tr>
+          <td>Low Education</td>
+          <td>$18,135</td>
+          <td>7.1% (Jun 2022)</td>
+          <td>1.8%</td>
+        </tr>
+      </tbody>
+    </table>
+    <p></p>
+
+    <center><img src="index_assets/image15.png" alt="" /></center>
+    <center><img src="index_assets/image5.png" alt="" /></center>
+    <center><img src="index_assets/image20.png" alt="" /></center>
+    <center><img src="index_assets/image9.png" alt="" /></center>
+
+    <hr />
+
+    <p><b>3</b> - <span>Describe the health of the various employers within the city limits. What employment patterns do you observe? Do you notice any areas of particularly high or low turnover? Limit your response to 10 images and 500 words.</span></p>
+
+    <p><strong>Spatial Structure of Employment</strong></p>
+    <p>Our starting point for analysis aggregated individual employer coordinates into a dynamic D3 hexbin grid to resolve spatial overplotting while preserving geographic reality. Exploring job concentration at a 22px resolution identified two primary density clusters: one north-northwest and a highly dense <strong>central hub</strong>, establishing our excellent selection criteria for deeper exploration. Assuming spatial density reflects sectoral focus, toggling layer controls to the <strong>Wage Geography layer</strong> reveals overwhelming reddish and orange tones, confirming high-paying jobs (green) are rare outliers. The city's labor market relies structurally on low-wage commercial, restaurant, and retail sectors. Design rationale dictated thresholded stability fills to surface risk. Comparing 15px hexbin layers exposes an acute anomaly: a <strong>spatial inversion</strong> where the densest employment hubs are actually dominated by highly unstable employment, while stable jobs are sparsely dispersed peripherally.</p>
+
+    <center><img src="index_assets/image12.png" alt="" /></center>
+    <center><img src="index_assets/image16.png" alt="" /></center>
+    <center><img src="index_assets/image1.png" alt="" /></center>
+    <center><img src="index_assets/image17.png" alt="" /></center>
+    <center><img src="index_assets/image7.png" alt="" /></center>
+
+    <p><strong>Temporal Employment Patterns</strong></p>
+    <p>Applying an interactive sequence—using spatial brushing on the map to select the <strong>77 central building footprints</strong>—instantly filters the linked <strong>Workforce Dynamics Lifecycle</strong> heatmap via Redux state management. This cross-view software coordination reveals a severe temporal anomaly: <strong>turnover activity spiked almost exclusively between March and April 2022</strong>, after which separations completely drop to zero. This defines an <strong>acute, synchronized restructuring shock</strong> rather than a continuous cycle of chronic attrition, forcing widespread layoffs simultaneously across dozens of businesses.</p>
+
+    <center><img src="index_assets/image8.png" alt="" /></center>
+    <center><img src="index_assets/image6.png" alt="" /></center>
+
+    <p><strong>Turnover Concentration</strong></p>
+    <p>We define <strong>workforce volatility</strong> as a composite score penalizing high variance in wage consistency, schedule regularity, and role diversity. Within the central hub, applying categorical filters for <strong>General Services and Hospitality</strong> and sorting by descending headcount exposes extreme polarization. Several micro-employers (average headcount of 1) exhibit severe volatility indices (4.41–9.29), as losing multiple staff members relative to their tiny size amplifies the score disproportionately. Conversely, larger baseline employers (#1771 holding at 8; #1763 stabilizing at 6) maintain stable scores (1.00–1.24). The heatmap matrix makes this scannable: top rows hold steady, while bottom rows display volatile bursts, proving aggregate turnover is disproportionately driven by fragile micro-operators.</p>
+
+    <center><img src="index_assets/image19.png" alt="" /></center>
+
+    <p><strong>Cross-View Insight</strong></p>
+    <p>Linking these views transforms isolated charts into a linked analytical workflow where map selections drive churn analysis. The force-directed <strong>Social Network Graph</strong> corroborates this: commute-dominant clusters (blue) coincide with the high-density, low-wage central hubs, confirming that structural employment geography and resident behavioral patterns are structurally aligned around these volatile zones.</p>
+
+    <center><img src="index_assets/image10.png" alt="" /></center>
+  </body>
 </html>
