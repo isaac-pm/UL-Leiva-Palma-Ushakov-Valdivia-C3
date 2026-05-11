@@ -79,6 +79,41 @@
         padding: 4pt 8pt;
         text-align: left;
       }
+
+      img {
+        cursor: pointer;
+      }
+
+      .modal-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.75);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+      }
+
+      .modal-overlay.open {
+        display: flex;
+      }
+
+      .modal-overlay img {
+        max-width: 90vw;
+        max-height: 90vh;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        border-radius: 4px;
+      }
+
+      .modal-overlay .close-btn {
+        position: fixed;
+        top: 16px;
+        right: 24px;
+        font-size: 32pt;
+        color: white;
+        cursor: pointer;
+        line-height: 1;
+      }
     </style>
   </head>
   <body>
@@ -136,6 +171,8 @@
     <p>
       <b><a href="http://www.youtube.com/ul-smith-mc3-video.avi" class="highlight">http://www.youtube.com/ul-smith-mc3-video.avi</a></b>
     </p>
+
+    <p class="center highlight" style="font-size: 10pt; padding: 4pt 0">Images are clickable — click to zoom in</p>
 
     <div class="divider"></div>
 
@@ -249,5 +286,31 @@
     <p>Linking these views transforms isolated charts into a linked analytical workflow where map selections drive churn analysis. The force-directed <strong>Social Network Graph</strong> corroborates this: commute-dominant clusters (blue) coincide with the high-density, low-wage central hubs, confirming that structural employment geography and resident behavioral patterns are structurally aligned around these volatile zones.</p>
 
     <center><img src="index_assets/image10.png" alt="" /></center>
+
+    <div class="modal-overlay" id="imageModal">
+      <span class="close-btn" id="modalClose">&times;</span>
+      <img id="modalImage" src="" alt="" />
+    </div>
+
+    <script>
+      const modal = document.getElementById("imageModal");
+      const modalImg = document.getElementById("modalImage");
+      document.querySelectorAll("img").forEach((img) => {
+        img.addEventListener("click", () => {
+          modalImg.src = img.src;
+          modalImg.alt = img.alt;
+          modal.classList.add("open");
+        });
+      });
+      document.getElementById("modalClose").addEventListener("click", () => {
+        modal.classList.remove("open");
+      });
+      modal.addEventListener("click", (e) => {
+        if (e.target === modal) modal.classList.remove("open");
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") modal.classList.remove("open");
+      });
+    </script>
   </body>
 </html>
