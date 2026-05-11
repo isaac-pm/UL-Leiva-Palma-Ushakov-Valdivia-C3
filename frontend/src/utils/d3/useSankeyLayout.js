@@ -79,9 +79,9 @@ export const useSankeyLayout = (nodes, links, width = 600, height = 400) => {
 
 export const nodeColorScale = (category) => {
   const colors = {
-    HighIncome: '#10b981',
-    MediumIncome: '#3b82f6',
-    LowIncome: '#f59e0b',
+    HighIncome: '#dc2626',
+    MediumIncome: '#ea580c',
+    LowIncome: '#93c5fd',
     Food: '#ef4444',
     Education: '#8b5cf6',
     Recreation: '#ec4899',

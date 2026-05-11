@@ -117,20 +117,20 @@ const SankeyDiagram = ({ width = 1000, height = 400 }) => {
       />
 
       <div className="mt-4 flex flex-wrap gap-2 text-xs">
-        <span className="px-2 py-1 rounded-full flex items-center gap-1 bg-emerald-500/20 text-emerald-500">
-          <span className="w-2 h-2 rounded-full bg-emerald-500" />
+        <span className="px-2 py-1 rounded-full flex items-center gap-1 bg-[#93c5fd]/20 text-[#93c5fd]">
+          <span className="w-2 h-2 rounded-full bg-[#93c5fd]" />
           Low Income
         </span>
-        <span className="px-2 py-1 rounded-full flex items-center gap-1 bg-blue-500/20 text-blue-500">
-          <span className="w-2 h-2 rounded-full bg-blue-500" />
+        <span className="px-2 py-1 rounded-full flex items-center gap-1 bg-[#fdba74]/20 text-[#fdba74]">
+          <span className="w-2 h-2 rounded-full bg-[#fdba74]" />
           Medium Income
         </span>
-        <span className="px-2 py-1 rounded-full flex items-center gap-1 bg-amber-500/20 text-amber-500">
-          <span className="w-2 h-2 rounded-full bg-amber-500" />
+        <span className="px-2 py-1 rounded-full flex items-center gap-1 bg-[#d8b4fe]/20 text-[#d8b4fe]">
+          <span className="w-2 h-2 rounded-full bg-[#d8b4fe]" />
           High Income
         </span>
-        <span className="px-2 py-1 rounded-full flex items-center gap-1 bg-red-500/20 text-red-500">
-          <span className="w-2 h-2 rounded-full bg-red-500" />
+        <span className="px-2 py-1 rounded-full flex items-center gap-1 bg-[#dc2626]/20 text-[#dc2626]">
+          <span className="w-2 h-2 rounded-full bg-[#dc2626]" />
           Very High Income
         </span>
       </div>
